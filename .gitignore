@@ -17,3 +17,7 @@ captures/
 
 # OS
 .DS_Store
+
+# Chiave di debug condivisa: ogni build (anche in CI) ha la stessa firma,
+# così l'APK si aggiorna senza disinstallare e senza perdere i dati.
+!app/debug.keystore

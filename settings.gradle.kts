@@ -17,3 +17,4 @@ dependencyResolutionManagement {
 rootProject.name = "greenwave"
 
 include(":signal-model")
+include(":app")

@@ -81,6 +81,28 @@ class PlanEstimatorTest {
     }
 
     @Test
+    fun `tasto rosso e attese al rosso risolvono l'ambiguita`() {
+        // Come in M1: VERDE ORA e ROSSO ORA a mano, più l'istante della fermata dal GPS.
+        val truth90 = SignalPlan(cycle = 90.0, green = 40.0, offset = 5.0)
+        val base = 7 * 3600.0 + truth90.offset
+        val observations = mutableListOf<Observation>()
+        // Arrivi al rosso (fase 55, 70, 60) e attesa fino al verde successivo.
+        listOf(3 to 55.0, 8 to 70.0, 21 to 60.0).forEach { (k, arrivalPhase) ->
+            observations += Observation(base + k * 90.0 + arrivalPhase + 1.0, RED_SEEN)
+            observations += Observation(base + (k + 1) * 90.0, GREEN_START)
+        }
+        listOf(5, 12).forEach { k -> observations += Observation(base + k * 90.0 + truth90.green, RED_START) }
+
+        val estimate = estimator.estimate(observations)
+
+        val plan = estimate.plan!!
+        assertEquals(90.0, plan.cycle, 0.05)
+        assertEquals(40.0, plan.green, 0.5)
+        assertTrue(estimate.alternativeCycles.isEmpty(), "${estimate.alternativeCycles}")
+        assertEquals(PlanStatus.RELIABLE, estimate.status)
+    }
+
+    @Test
     fun `il tasto rosso misura la durata del verde`() {
         val base = 7 * 3600.0
         val observations = listOf(0, 4, 9, 15).flatMap { k ->
