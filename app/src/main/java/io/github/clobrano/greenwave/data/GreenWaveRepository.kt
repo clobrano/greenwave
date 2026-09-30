@@ -11,7 +11,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-/** Stima del piano di un semaforo per la fascia oraria [slot]. */
+/** Plan estimate of a traffic light for the time band [slot]. */
 data class LightEstimate(val slot: ScheduleSlot, val estimate: PlanEstimate)
 
 class GreenWaveRepository(
@@ -38,12 +38,12 @@ class GreenWaveRepository(
 
     suspend fun deleteLight(light: TrafficLightEntity) = db.trafficLights().delete(light)
 
-    /** Sposta un semaforo di una posizione nel percorso ([delta] = -1 su, +1 giù). */
+    /** Moves a traffic light by one position on the route ([delta] = -1 up, +1 down). */
     suspend fun moveLight(light: TrafficLightEntity, delta: Int) {
         val all = db.trafficLights().getAll()
         val index = all.indexOfFirst { it.id == light.id }
         val other = all.getOrNull(index + delta) ?: return
-        // Normalizza gli ordini prima dello scambio, nel caso ci siano duplicati.
+        // Normalize the order values before swapping, in case of duplicates.
         val a = all[index].copy(routeOrder = index)
         val b = other.copy(routeOrder = index + delta)
         db.trafficLights().swapOrder(a, b)
@@ -54,7 +54,7 @@ class GreenWaveRepository(
 
     suspend fun deleteObservation(observation: ObservationEntity) = db.observations().delete(observation)
 
-    /** Stima i piani di tutti i semafori per la fascia oraria in cui cade [nowMillis]. */
+    /** Estimates the plans of all traffic lights for the time band containing [nowMillis]. */
     fun estimate(observations: List<ObservationEntity>, nowMillis: Long): Map<Long, LightEstimate> {
         val slot = timeBands.slotOf(nowMillis)
         return observations
@@ -71,7 +71,7 @@ class GreenWaveRepository(
     fun toEpochMillis(referenceMillis: Long, secondsOfDay: Double): Long =
         timeBands.toEpochMillis(referenceMillis, secondsOfDay)
 
-    /** Esporta tutte le osservazioni in CSV, una riga per osservazione con i dati del semaforo. */
+    /** Exports all observations as CSV, one row per observation with the light's data. */
     suspend fun exportCsv(writer: Writer) {
         val lights = db.trafficLights().getAll().associateBy { it.id }
         val formatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME.withZone(ZoneId.systemDefault())

@@ -7,7 +7,7 @@ import io.github.clobrano.greenwave.data.GreenWaveRepository
 import io.github.clobrano.greenwave.location.LocationTracker
 import io.github.clobrano.greenwave.location.TrustedClock
 
-/** Oggetti condivisi dall'intera app (iniezione delle dipendenze fatta a mano). */
+/** Objects shared by the whole app (hand-written dependency injection). */
 class GreenWaveApplication : Application() {
     val clock by lazy { TrustedClock() }
     val repository by lazy { GreenWaveRepository(AppDatabase.create(this)) }

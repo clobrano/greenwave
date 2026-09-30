@@ -37,7 +37,7 @@ import io.github.clobrano.greenwave.data.TrafficLightEntity
 import io.github.clobrano.greenwave.location.Fix
 import io.github.clobrano.greenwave.model.ObservationKind
 
-/** Sopra questa velocità (m/s) i tasti sono disattivati: si registra solo da fermi. */
+/** Above this speed (m/s) the buttons are disabled: record only while stopped. */
 private const val MAX_SPEED_FOR_BUTTONS = 5.0 / 3.6
 
 @Composable
@@ -54,7 +54,7 @@ fun RecordScreen(
     onUndo: () -> Unit,
     toSecondsOfDay: (Long) -> Double,
 ) {
-    // Schermo sempre acceso mentre si registra.
+    // Keep the screen on while recording.
     val view = LocalView.current
     DisposableEffect(view) {
         view.keepScreenOn = true
@@ -75,7 +75,7 @@ fun RecordScreen(
             val t = toSecondsOfDay(now)
             val green = plan.isGreen(t)
             Text(
-                "Previsto: ${if (green) "VERDE" else "ROSSO"}, cambia tra ${plan.secondsToChange(t).toInt()} s",
+                "Predicted: ${if (green) "GREEN" else "RED"}, changes in ${plan.secondsToChange(t).toInt()} s",
                 color = if (green) Palette.green else Palette.red,
                 style = MaterialTheme.typography.titleMedium,
             )
@@ -83,7 +83,7 @@ fun RecordScreen(
 
         Text(statusLine(fix, clockSynced), style = MaterialTheme.typography.bodySmall)
         if (moving) {
-            Text("In movimento: i tasti si attivano da fermo.", color = Palette.amber)
+            Text("Moving: the buttons work only when stopped.", color = Palette.amber)
         }
 
         Button(
@@ -92,7 +92,7 @@ fun RecordScreen(
             shape = RoundedCornerShape(24.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Palette.green, contentColor = Color.Black),
             modifier = Modifier.fillMaxWidth().weight(2f),
-        ) { Text("VERDE ORA", fontSize = 48.sp, fontWeight = FontWeight.Black) }
+        ) { Text("GREEN NOW", fontSize = 48.sp, fontWeight = FontWeight.Black) }
 
         Button(
             onClick = { onRecord(ObservationKind.RED_START) },
@@ -100,17 +100,17 @@ fun RecordScreen(
             shape = RoundedCornerShape(24.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Palette.red, contentColor = Color.White),
             modifier = Modifier.fillMaxWidth().weight(1f),
-        ) { Text("ROSSO ORA", fontSize = 32.sp, fontWeight = FontWeight.Bold) }
+        ) { Text("RED NOW", fontSize = 32.sp, fontWeight = FontWeight.Bold) }
 
         Box(Modifier.fillMaxWidth().height(56.dp)) {
             if (lastSaved != null) {
                 Row(Modifier.align(Alignment.CenterStart), verticalAlignment = Alignment.CenterVertically) {
                     val name = lights.firstOrNull { it.id == lastSaved.lightId }?.name.orEmpty()
                     Text(
-                        "Salvato: ${lastSaved.kind.label} alle ${formatTime(lastSaved.epochMillis)} – $name",
+                        "Saved: ${lastSaved.kind.label} at ${formatTime(lastSaved.epochMillis)} – $name",
                         Modifier.weight(1f),
                     )
-                    TextButton(onClick = onUndo) { Text("Annulla") }
+                    TextButton(onClick = onUndo) { Text("Undo") }
                 }
             }
         }
@@ -127,23 +127,23 @@ private fun TargetSelector(
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(
-                target?.light?.name ?: "Nessun semaforo vicino",
+                target?.light?.name ?: "No light nearby",
                 style = MaterialTheme.typography.headlineSmall,
             )
             Text(
                 when {
-                    target == null -> "Avvicinati a un semaforo o sceglilo a mano"
-                    target.automatic -> "Scelto automaticamente (il più vicino)"
-                    else -> "Scelto a mano"
+                    target == null -> "Get closer to a light or pick one by hand"
+                    target.automatic -> "Picked automatically (the nearest)"
+                    else -> "Picked by hand"
                 },
                 style = MaterialTheme.typography.bodySmall,
             )
         }
         Box {
-            OutlinedButton(onClick = { open = true }) { Text("Cambia") }
+            OutlinedButton(onClick = { open = true }) { Text("Change") }
             DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
                 DropdownMenuItem(
-                    text = { Text("Automatico (il più vicino)") },
+                    text = { Text("Automatic (the nearest)") },
                     onClick = { onChooseTarget(null); open = false },
                 )
                 lights.forEach { light ->
@@ -160,11 +160,11 @@ private fun TargetSelector(
 
 private fun statusLine(fix: Fix?, clockSynced: Boolean): String {
     val gps = when {
-        fix == null -> "GPS: in attesa"
+        fix == null -> "GPS: waiting"
         fix.accuracyMeters != null -> "GPS: ±${fix.accuracyMeters.toInt()} m"
-        else -> "GPS: attivo"
+        else -> "GPS: on"
     }
     val speed = fix?.speed?.let { " · ${(it * 3.6).toInt()} km/h" }.orEmpty()
-    val clock = if (clockSynced) " · ora satellitare" else " · ora del telefono"
+    val clock = if (clockSynced) " · satellite time" else " · phone clock"
     return gps + speed + clock
 }

@@ -4,8 +4,8 @@ plugins {
     alias(libs.plugins.kotlin.jvm)
 }
 
-// Modulo Kotlin puro (niente Android): contiene tutta la logica dei semafori
-// così si può testare velocemente sul PC e in CI.
+// Pure Kotlin module (no Android): holds all the traffic light logic
+// so it can be tested quickly on a PC and in CI.
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17

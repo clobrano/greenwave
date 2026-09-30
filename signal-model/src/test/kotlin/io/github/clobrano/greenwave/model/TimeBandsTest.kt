@@ -11,18 +11,18 @@ class TimeBandsTest {
     private val bands = TimeBands(zone = zone)
 
     @Test
-    fun `fascia e tipo di giorno`() {
-        // Mercoledì 30 settembre 2026, 8:15.
+    fun `band and day type`() {
+        // Wednesday 30 September 2026, 8:15.
         val slot = bands.slotOf(ZonedDateTime.of(2026, 9, 30, 8, 15, 0, 0, zone))
         assertEquals(ScheduleSlot(DayType.WEEKDAY, LocalTime.of(7, 0), LocalTime.of(9, 30)), slot)
 
         val night = bands.slotOf(ZonedDateTime.of(2026, 10, 3, 22, 0, 0, 0, zone))
         assertEquals(ScheduleSlot(DayType.SATURDAY, LocalTime.of(20, 0), LocalTime.MAX), night)
-        assertEquals("Sabato 20:00–24:00", night.label)
+        assertEquals("Saturday 20:00–24:00", night.label)
     }
 
     @Test
-    fun `secondi dalla mezzanotte e ritorno`() {
+    fun `seconds since midnight and back`() {
         val time = ZonedDateTime.of(2026, 9, 30, 8, 15, 30, 250_000_000, zone)
         val millis = time.toInstant().toEpochMilli()
         val seconds = bands.secondsOfDay(millis)

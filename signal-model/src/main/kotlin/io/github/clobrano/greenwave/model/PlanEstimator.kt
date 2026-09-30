@@ -8,57 +8,57 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 enum class PlanStatus {
-    /** Dati insufficienti o ambigui: le previsioni non vanno mostrate come affidabili. */
+    /** Not enough data, or ambiguous data: predictions must not be shown as reliable. */
     LEARNING,
 
-    /** Il piano spiega bene le osservazioni. */
+    /** The plan explains the observations well. */
     RELIABLE,
 
-    /** Molte osservazioni ma nessun ciclo fisso le spiega: semaforo probabilmente attuato/adattivo. */
+    /** Many observations but no fixed cycle explains them: probably an actuated/adaptive light. */
     UNPREDICTABLE,
 }
 
 data class PlanEstimate(
-    /** Piano stimato, o null se i dati non bastano nemmeno per un'ipotesi. */
+    /** Estimated plan, or null if the data is not enough even for a guess. */
     val plan: SignalPlan?,
     val status: PlanStatus,
-    /** Scarto quadratico medio (s) tra gli inizi verde osservati e quelli previsti. */
+    /** Root mean square error (s) between observed and predicted starts of green. */
     val rmsError: Double,
     val greenStarts: Int,
-    /** Osservazioni di colore (verde/rosso visto) incompatibili con il piano. */
+    /** Color observations (green/red seen) that contradict the plan. */
     val contradictions: Int,
-    /** True se la durata del verde è dedotta da osservazioni, false se è un valore di default. */
+    /** True if the green duration comes from observations, false if it is a default value. */
     val greenMeasured: Boolean,
-    /** Altri cicli che spiegano i dati altrettanto bene: se non è vuota il ciclo è ambiguo. */
+    /** Other cycles that explain the data equally well: when not empty the cycle is ambiguous. */
     val alternativeCycles: List<Double>,
 )
 
 /**
- * Stima ciclo, fase (offset) e durata del verde di un semaforo a tempo fisso.
+ * Estimates cycle, phase (offset) and green duration of a fixed-time traffic light.
  *
- * Idea: gli inizi del verde distano tra loro multipli interi del ciclo C. Per ogni C
- * candidato si calcola la fase media degli inizi verde (media circolare) e lo scarto
- * dei singoli inizi rispetto a quella fase; il C con lo scarto minore è il ciclo.
+ * Idea: starts of green are integer multiples of the cycle C apart. For each candidate C
+ * we compute the mean phase of the starts of green (circular mean) and how far each start
+ * is from that phase; the C with the smallest error is the cycle.
  *
- * Con i soli inizi verde anche C/2, C/3... spiegano i dati: le osservazioni di colore
- * (GREEN_SEEN, RED_SEEN, RED_START) servono a scartare questi sottomultipli.
+ * With starts of green alone, C/2, C/3... explain the data too: color observations
+ * (GREEN_SEEN, RED_SEEN, RED_START) are used to rule out these submultiples.
  */
 class PlanEstimator(private val config: Config = Config()) {
 
     data class Config(
         val minCycle: Double = 40.0,
         val maxCycle: Double = 180.0,
-        /** Scarto (s) entro cui un piano è considerato buono. */
+        /** Error (s) within which a plan is considered good. */
         val goodFitRms: Double = 3.0,
-        /** Scarto (s) oltre cui, con molte osservazioni, il semaforo è dichiarato imprevedibile. */
+        /** Error (s) above which, with many observations, the light is declared unpredictable. */
         val badFitRms: Double = 6.0,
         val minGreenStartsForReliable: Int = 3,
         val minGreenStartsForUnpredictable: Int = 10,
-        /** Durata minima plausibile di verde e rosso (s). */
+        /** Minimum plausible duration of green and red (s). */
         val minPhase: Double = 5.0,
-        /** Tolleranza (s) nel giudicare un'osservazione di colore vicino al cambio. */
+        /** Tolerance (s) when judging a color observation close to a change. */
         val colorTolerance: Double = 1.5,
-        /** Frazione di verde usata quando non ci sono osservazioni di colore. */
+        /** Green fraction used when there are no color observations. */
         val defaultGreenFraction: Double = 0.5,
     )
 
@@ -80,8 +80,8 @@ class PlanEstimator(private val config: Config = Config()) {
         val good = candidates.filter { it.fit.rms <= config.goodFitRms }
         val pool = good.ifEmpty { candidates }
 
-        // Prima meno contraddizioni, poi il ciclo più lungo: i sottomultipli del ciclo vero
-        // spiegano gli inizi verde altrettanto bene, quindi a parità si preferisce il più lungo.
+        // Fewest contradictions first, then the longest cycle: submultiples of the true cycle
+        // explain the starts of green equally well, so on a tie the longest one wins.
         val best = pool.minWith(
             compareBy<Candidate> { it.greenFit.contradictions }
                 .thenByDescending { if (it.fit.rms <= config.goodFitRms) it.fit.cycle else -it.fit.rms },
@@ -114,9 +114,9 @@ class PlanEstimator(private val config: Config = Config()) {
     }
 
     /**
-     * Ricerca a griglia dei cicli che spiegano gli inizi verde, con passo abbastanza fine
-     * da non perdere il minimo (l'errore di fase cresce con il numero di cicli nell'intervallo),
-     * seguita da un raffinamento attorno a ciascun minimo locale.
+     * Grid search for the cycles that explain the starts of green, with a step fine enough
+     * not to miss the minimum (the phase error grows with the number of cycles in the span),
+     * followed by a refinement around each local minimum.
      */
     private fun findCycleCandidates(starts: List<Double>, span: Double): List<Fit> {
         val step = (config.minCycle / span).coerceIn(0.0005, 0.05)
@@ -137,7 +137,7 @@ class PlanEstimator(private val config: Config = Config()) {
         val refined = minima.map { m ->
             (-10..10).map { k -> fitCycle(starts, m.cycle + k * step / 10.0) }.minBy { it.rms }
         }
-        // Minimi quasi coincidenti (plateau) contano una volta sola.
+        // Nearly identical minima (plateaus) count once.
         return refined.sortedBy { it.rms }.fold(mutableListOf()) { acc, fit ->
             if (acc.none { abs(it.cycle - fit.cycle) < 2 * step }) acc += fit
             acc
@@ -150,7 +150,7 @@ class PlanEstimator(private val config: Config = Config()) {
         return Fit(cycle, offset, sqrt(sumSq / starts.size))
     }
 
-    /** Durata del verde e numero di osservazioni di colore incompatibili, per un dato ciclo. */
+    /** Green duration and number of contradicting color observations, for a given cycle. */
     private fun fitGreen(fit: Fit, observations: List<Observation>): GreenFit {
         val cycle = fit.cycle
         fun phase(o: Observation) = positiveMod(o.time - fit.offset, cycle)
@@ -165,7 +165,7 @@ class PlanEstimator(private val config: Config = Config()) {
             greenSeen.count { it >= green + tol } + redSeen.count { it < green - tol }
 
         if (redStarts.isNotEmpty()) {
-            // La fine del verde è osservata direttamente.
+            // The end of green is observed directly.
             val green = positiveMod(circularMean(redStarts, cycle) - fit.offset, cycle)
             val redSpread = sqrt(redStarts.sumOf { val r = signedMod(it - fit.offset - green, cycle); r * r } / redStarts.size)
             val badRedStarts = if (redSpread > config.goodFitRms) redStarts.size else 0
@@ -177,22 +177,24 @@ class PlanEstimator(private val config: Config = Config()) {
             return GreenFit((cycle * config.defaultGreenFraction).coerceIn(lo, hi), 0, measured = false)
         }
 
-        // Si prova ogni durata di verde (passo 0,5 s) e si tiene il centro dell'intervallo
-        // più lungo di valori con il minimo di contraddizioni.
+        // Try every green duration (0.5 s step) and keep the middle of the longest run
+        // of values with the fewest contradictions.
         val grid = generateSequence(lo) { it + 0.5 }.takeWhile { it <= hi }.toList()
         val counts = grid.map(::contradictions)
         val minCount = counts.min()
-        var bestRun = 0 to 0
+        var bestRun: IntRange? = null
         var runStart = -1
         for (i in counts.indices) {
             if (counts[i] == minCount) {
                 if (runStart < 0) runStart = i
-                if (i - runStart > bestRun.second - bestRun.first) bestRun = runStart to i
+                val run = runStart..i
+                if (bestRun == null || run.count() > bestRun.count()) bestRun = run
             } else {
                 runStart = -1
             }
         }
-        val green = (grid[bestRun.first] + grid[bestRun.second]) / 2.0
+        val run = checkNotNull(bestRun)
+        val green = (grid[run.first] + grid[run.last]) / 2.0
         return GreenFit(green, minCount, measured = true)
     }
 

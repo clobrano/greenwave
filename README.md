@@ -1,82 +1,82 @@
 # GreenWave
 
-App Android personale che impara i cicli dei semafori sul tragitto di tutti i giorni e
-aiuta a trovarli verdi: quando partire e, più avanti, a che velocità andare.
+A personal Android app that learns the traffic light cycles on your daily route and helps
+you catch them green: when to leave and, later on, how fast to drive.
 
-I semafori a tempo fisso ripetono lo stesso ciclo (per esempio 90 s) nella stessa fascia
-oraria. Registrando qualche volta l'istante in cui scatta il verde, l'app ricava durata
-del ciclo e fase di ogni semaforo e può prevederne lo stato in qualsiasi momento.
+Fixed-time traffic lights repeat the same cycle (for example 90 s) within the same time
+band. By recording a few times the instant a light turns green, the app works out each
+light's cycle length and phase, and can predict its state at any moment.
 
-## Installazione sul telefono
+## Installing on the phone
 
-1. Scarica l'APK:
-   - dalla release [`latest`](https://github.com/clobrano/greenwave/releases/tag/latest)
-     (aggiornata a ogni push su `main`), oppure
-   - dalla pagina [Actions](https://github.com/clobrano/greenwave/actions): apri l'ultima
-     esecuzione di "Build" e scarica l'artefatto `greenwave-debug-apk` (è uno zip).
-2. Aprilo dal telefono e consenti l'installazione da "origini sconosciute" quando richiesto.
-3. Al primo avvio concedi il permesso di posizione.
+1. Download the APK:
+   - from the [`latest`](https://github.com/clobrano/greenwave/releases/tag/latest) release
+     (updated on every push to `main`), or
+   - from the [Actions](https://github.com/clobrano/greenwave/actions) page: open the latest
+     "Build" run and download the `greenwave-debug-apk` artifact (it is a zip).
+2. Open it on the phone and allow installing from unknown sources when asked.
+3. On first launch, grant the location permission.
 
-Tutte le build sono firmate con la stessa chiave (`app/debug.keystore`), quindi una
-versione nuova si installa sopra la vecchia senza perdere i dati.
+Every build is signed with the same key (`app/debug.keystore`), so a new version installs
+over the old one without losing data.
 
-## Come si usa (versione 0.1)
+## How to use it (version 0.1)
 
-1. **Mappa**: tieni premuto su un incrocio per aggiungere un semaforo. Indica la direzione
-   di marcia con cui lo attraversi (o "Usa la mia" mentre sei in strada), così l'app non
-   lo confonde con il semaforo dell'altra carreggiata.
-2. **Registra**: da fermo al semaforo, premi **VERDE ORA** nell'istante esatto in cui
-   scatta il verde (e **ROSSO ORA** quando scatta il giallo, se lo vedi). Il semaforo viene
-   scelto in automatico (il più vicino nella tua direzione) oppure a mano. I tasti si
-   disattivano sopra i 5 km/h. "Annulla" elimina l'ultima registrazione.
-3. **Semafori**: l'elenco è l'ordine del percorso (frecce per riordinare). Il dettaglio di
-   ogni semaforo mostra il piano stimato, lo stato previsto in questo momento, i prossimi
-   verdi e le osservazioni (eliminabili). "Esporta CSV" salva tutte le osservazioni.
+1. **Map**: long-press on an intersection to add a traffic light. Set the driving direction
+   you cross it with (or "Use mine" while on the road), so the app does not confuse it with
+   the light for the opposite lane.
+2. **Record**: while stopped at the light, press **GREEN NOW** at the exact moment it turns
+   green (and **RED NOW** when it turns amber, if you see it). The light is picked
+   automatically (the nearest one in your direction) or by hand. The buttons are disabled
+   above 5 km/h. "Undo" deletes the last recording.
+3. **Lights**: the list is the route order (arrows to reorder). Each light's detail shows
+   the estimated plan, the predicted state right now, the next greens and the observations
+   (which can be deleted). "Export CSV" saves all observations.
 
-Colori sulla mappa: grigio = nessun dato, giallo = in apprendimento, verde = prevedibile,
-rosso = non prevedibile (probabilmente un semaforo che si adatta al traffico).
+Map colors: gray = no data, amber = learning, green = predictable, red = unpredictable
+(probably a light that adapts to traffic).
 
-### Quanti dati servono
+### How much data is needed
 
-- Almeno 3 inizi del verde nella stessa fascia oraria (feriale 7:00–9:30, 9:30–17:00,
-  17:00–20:00, ecc.), meglio se in giorni diversi.
-- Con i soli inizi del verde il ciclo resta ambiguo con la sua metà (90 s e 45 s spiegano
-  gli stessi dati). Per risolvere l'ambiguità registra ogni tanto anche **ROSSO ORA**
-  (misura la durata del verde) e tieni il GPS attivo: quando premi VERDE ORA dopo
-  un'attesa, l'app registra da sola che dal momento in cui ti sei fermato era rosso.
-- L'ora usata è quella dei satelliti GPS, non quella del telefono, che può sbagliare di
-  qualche secondo.
+- At least 3 starts of green in the same time band (weekday 7:00–9:30, 9:30–17:00,
+  17:00–20:00, etc.), ideally on different days.
+- With starts of green alone the cycle stays ambiguous with its half (90 s and 45 s explain
+  the same data). To resolve it, now and then also record **RED NOW** (it measures the green
+  duration) and keep GPS on: when you press GREEN NOW after waiting, the app records by
+  itself that it was red from the moment you stopped.
+- The time used is the GPS satellite time, not the phone clock, which can be off by a few
+  seconds.
 
-## Come funziona
+## How it works
 
-La logica è nel modulo `signal-model`, Kotlin puro senza Android, testato a parte:
+The logic lives in the `signal-model` module, plain Kotlin without Android, tested on its own:
 
-| File | Cosa fa |
+| File | What it does |
 | --- | --- |
-| `SignalPlan.kt` | Semaforo a tempo fisso: ciclo, durata del verde, fase; colore in un istante e prossimi verdi |
-| `PlanEstimator.kt` | Stima il piano dalle osservazioni: ricerca del ciclo che allinea gli inizi del verde, poi durata del verde dalle osservazioni di colore |
-| `SpeedAdvisor.kt` | Velocità consigliata per arrivare al prossimo semaforo col verde, mai oltre il limite |
-| `TripSimulator.kt` | Simula il tragitto per confrontare orari di partenza |
-| `TimeBands.kt` | Fasce orarie e tipo di giorno |
-| `Geo.kt` | Distanze, direzioni e scelta del semaforo più vicino |
+| `SignalPlan.kt` | Fixed-time traffic light: cycle, green duration, phase; color at an instant and next greens |
+| `PlanEstimator.kt` | Estimates the plan from observations: searches for the cycle that aligns the starts of green, then the green duration from color observations |
+| `SpeedAdvisor.kt` | Speed to reach the next light on green, never above the limit |
+| `TripSimulator.kt` | Simulates the trip to compare departure times |
+| `TimeBands.kt` | Time bands and day types |
+| `Geo.kt` | Distances, bearings and picking the nearest light |
 
-Il modulo `app` contiene l'interfaccia (Jetpack Compose), la mappa (MapLibre con
-[OpenFreeMap](https://openfreemap.org), dati © OpenStreetMap), il database (Room) e il GPS
-(LocationManager di Android, senza servizi Google).
+The `app` module holds the UI (Jetpack Compose), the map (MapLibre with
+[OpenFreeMap](https://openfreemap.org), data © OpenStreetMap contributors), the database
+(Room) and GPS (Android's LocationManager, no Google services).
 
-## Sviluppo
+## Development
 
-Requisiti: JDK 21 e Android SDK con la piattaforma 37.
+Requirements: JDK 21 and the Android SDK with platform 37.
 
 ```sh
-./gradlew :signal-model:test   # test della logica, non serve l'SDK Android
+./gradlew :signal-model:test   # logic tests, no Android SDK needed
 ./gradlew assembleDebug        # APK in app/build/outputs/apk/debug/
 ```
 
-## Stato
+## Status
 
-- [x] M1 – Mappa, semafori, tasto VERDE/ROSSO, osservazioni, export CSV
-- [x] Stima del piano e previsione nel dettaglio del semaforo (anticipo di M2)
-- [ ] M2 – Tabella delle partenze sul percorso
-- [ ] M3 – Registrazione automatica da GPS (fermate e ripartenze)
-- [ ] M4 – Guida assistita con velocità consigliata
+- [x] M1 – Map, traffic lights, GREEN/RED buttons, observations, CSV export
+- [x] Plan estimate and prediction in the light detail (ahead of M2)
+- [ ] M2 – Departure table for the route
+- [ ] M3 – Automatic recording from GPS (stops and restarts)
+- [ ] M4 – Assisted driving with speed advice

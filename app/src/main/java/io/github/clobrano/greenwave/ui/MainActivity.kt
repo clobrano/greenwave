@@ -35,9 +35,9 @@ import io.github.clobrano.greenwave.model.GeoPoint
 import java.time.LocalDate
 
 private enum class Tab(val label: String, val symbol: String) {
-    MAP("Mappa", "🗺"),
-    RECORD("Registra", "🚦"),
-    LIGHTS("Semafori", "☰"),
+    MAP("Map", "🗺"),
+    RECORD("Record", "🚦"),
+    LIGHTS("Lights", "☰"),
 }
 
 class MainActivity : ComponentActivity() {
@@ -90,7 +90,7 @@ private fun GreenWaveApp(viewModel: GreenWaveViewModel) {
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         if (uri != null) {
             viewModel.exportCsv(uri) { ok ->
-                Toast.makeText(context, if (ok) "Esportazione completata" else "Esportazione fallita", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, if (ok) "Export complete" else "Export failed", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -161,7 +161,7 @@ private fun GreenWaveApp(viewModel: GreenWaveViewModel) {
 
     newLightAt?.let { position ->
         AddLightDialog(
-            defaultName = "Semaforo ${lights.size + 1}",
+            defaultName = "Light ${lights.size + 1}",
             currentHeading = fix?.heading,
             onConfirm = { form ->
                 viewModel.addLight(form.name.trim(), position, form.approachBearing, form.speedLimitKmh)

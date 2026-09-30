@@ -35,13 +35,13 @@ fun LightsScreen(
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Percorso", style = MaterialTheme.typography.headlineSmall)
-                Text("${lights.size} semafori · ${observations.size} osservazioni", style = MaterialTheme.typography.bodySmall)
+                Text("Route", style = MaterialTheme.typography.headlineSmall)
+                Text("${lights.size} lights · ${observations.size} observations", style = MaterialTheme.typography.bodySmall)
             }
-            OutlinedButton(onClick = onExport, enabled = observations.isNotEmpty()) { Text("Esporta CSV") }
+            OutlinedButton(onClick = onExport, enabled = observations.isNotEmpty()) { Text("Export CSV") }
         }
         if (lights.isEmpty()) {
-            Text("Nessun semaforo: aggiungili dalla mappa tenendo premuto sul punto.")
+            Text("No lights yet: add them from the map with a long press on the spot.")
         }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             itemsIndexed(lights, key = { _, light -> light.id }) { index, light ->
@@ -53,8 +53,8 @@ fun LightsScreen(
                             Text(estimate?.status.label, color = estimate?.status.color)
                             Text(
                                 buildString {
-                                    append("${counts[light.id] ?: 0} osservazioni")
-                                    estimate?.plan?.let { append(" · ciclo ${formatSeconds(it.cycle)}") }
+                                    append("${counts[light.id] ?: 0} observations")
+                                    estimate?.plan?.let { append(" · cycle ${formatSeconds(it.cycle)}") }
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                             )

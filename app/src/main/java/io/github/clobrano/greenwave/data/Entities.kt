@@ -14,10 +14,10 @@ data class TrafficLightEntity(
     val name: String,
     val lat: Double,
     val lon: Double,
-    /** Direzione di marcia con cui lo attraverso, in gradi (0 = nord); null = qualsiasi. */
+    /** Driving direction I cross it with, in degrees (0 = north); null = any. */
     val approachBearing: Double?,
     val speedLimitKmh: Int = 50,
-    /** Posizione nel percorso (0 = primo semaforo che incontro). */
+    /** Position on the route (0 = first light I meet). */
     val routeOrder: Int,
     val notes: String = "",
 ) {
@@ -42,10 +42,10 @@ enum class ObservationSource { MANUAL, GPS }
 data class ObservationEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val lightId: Long,
-    /** Istante UTC in millisecondi, corretto con l'ora GNSS quando disponibile. */
+    /** UTC instant in milliseconds, corrected with GNSS time when available. */
     val epochMillis: Long,
     val kind: ObservationKind,
     val source: ObservationSource,
-    /** True se [epochMillis] è allineato all'ora GNSS, false se viene dall'orologio del telefono. */
+    /** True if [epochMillis] is aligned to GNSS time, false if it comes from the phone clock. */
     val gnssTime: Boolean,
 )

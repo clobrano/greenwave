@@ -23,7 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 
-/** Campi modificabili di un semaforo. */
+/** Editable fields of a traffic light. */
 data class LightForm(val name: String, val speedLimitKmh: Int, val approachBearing: Double?)
 
 @Composable
@@ -37,7 +37,7 @@ fun LightFormFields(
         OutlinedTextField(
             value = form.name,
             onValueChange = { onChange(form.copy(name = it)) },
-            label = { Text("Nome") },
+            label = { Text("Name") },
             singleLine = true,
         )
         OutlinedTextField(
@@ -46,12 +46,12 @@ fun LightFormFields(
                 limitText = text.filter(Char::isDigit).take(3)
                 limitText.toIntOrNull()?.let { onChange(form.copy(speedLimitKmh = it)) }
             },
-            label = { Text("Limite di velocità (km/h)") },
+            label = { Text("Speed limit (km/h)") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             singleLine = true,
             modifier = Modifier.padding(top = 8.dp),
         )
-        Text("Direzione di marcia", Modifier.padding(top = 12.dp))
+        Text("Driving direction", Modifier.padding(top = 12.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             var open by remember { mutableStateOf(false) }
             Box {
@@ -67,7 +67,7 @@ fun LightFormFields(
             }
             if (currentHeading != null) {
                 TextButton(onClick = { onChange(form.copy(approachBearing = currentHeading)) }) {
-                    Text("Usa la mia")
+                    Text("Use mine")
                 }
             }
         }
@@ -84,11 +84,11 @@ fun AddLightDialog(
     var form by remember { mutableStateOf(LightForm(defaultName, 50, null)) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Nuovo semaforo") },
+        title = { Text("New traffic light") },
         text = { LightFormFields(form, currentHeading) { form = it } },
         confirmButton = {
-            Button(onClick = { onConfirm(form) }, enabled = form.name.isNotBlank()) { Text("Aggiungi") }
+            Button(onClick = { onConfirm(form) }, enabled = form.name.isNotBlank()) { Text("Add") }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Annulla") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }

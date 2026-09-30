@@ -54,7 +54,7 @@ fun LightDetailScreen(
     ) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onBack) { Text("← Indietro") }
+                TextButton(onClick = onBack) { Text("← Back") }
                 Text(light.name, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
             }
         }
@@ -75,20 +75,20 @@ fun LightDetailScreen(
                                 )
                             },
                             enabled = changed && form.name.isNotBlank(),
-                        ) { Text("Salva") }
-                        TextButton(onClick = { confirmDelete = true }) { Text("Elimina semaforo", color = Palette.red) }
+                        ) { Text("Save") }
+                        TextButton(onClick = { confirmDelete = true }) { Text("Delete light", color = Palette.red) }
                     }
                 }
             }
         }
-        item { Text("Osservazioni (${observations.size})", style = MaterialTheme.typography.titleMedium) }
+        item { Text("Observations (${observations.size})", style = MaterialTheme.typography.titleMedium) }
         items(observations, key = { it.id }) { o ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(o.kind.label)
                     Text(
-                        "${formatDateTime(o.epochMillis)} · ${if (o.source == ObservationSource.GPS) "GPS" else "tasto"}" +
-                            if (o.gnssTime) "" else " · ora telefono",
+                        "${formatDateTime(o.epochMillis)} · ${if (o.source == ObservationSource.GPS) "GPS" else "button"}" +
+                            if (o.gnssTime) "" else " · phone clock",
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -101,12 +101,12 @@ fun LightDetailScreen(
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("Eliminare ${light.name}?") },
-            text = { Text("Verranno eliminate anche le sue ${observations.size} osservazioni.") },
+            title = { Text("Delete ${light.name}?") },
+            text = { Text("Its ${observations.size} observations will be deleted too.") },
             confirmButton = {
-                Button(onClick = { confirmDelete = false; onDelete(light) }) { Text("Elimina") }
+                Button(onClick = { confirmDelete = false; onDelete(light) }) { Text("Delete") }
             },
-            dismissButton = { OutlinedButton(onClick = { confirmDelete = false }) { Text("Annulla") } },
+            dismissButton = { OutlinedButton(onClick = { confirmDelete = false }) { Text("Cancel") } },
         )
     }
 }
@@ -121,22 +121,22 @@ private fun EstimateCard(
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             val e = estimate?.estimate
-            Text("Piano stimato", style = MaterialTheme.typography.titleMedium)
-            estimate?.let { Text("Fascia: ${it.slot.label}", style = MaterialTheme.typography.bodySmall) }
+            Text("Estimated plan", style = MaterialTheme.typography.titleMedium)
+            estimate?.let { Text("Time band: ${it.slot.label}", style = MaterialTheme.typography.bodySmall) }
             Text(e?.status.label, color = e?.status.color)
             val plan = e?.plan
             if (e == null || plan == null) {
-                Text("Servono almeno 2 inizi del verde in questa fascia oraria, in cicli diversi.")
+                Text("Needs at least 2 starts of green in this time band, in different cycles.")
                 return@Column
             }
-            Text("Ciclo: ${formatSeconds(plan.cycle)}")
-            Text("Verde: ${formatSeconds(plan.green)}" + if (e.greenMeasured) "" else " (ipotesi: registra anche il rosso)")
-            Text("Errore medio: ${formatSeconds(e.rmsError)} su ${e.greenStarts} inizi verde")
-            if (e.contradictions > 0) Text("Osservazioni in contrasto: ${e.contradictions}", color = Palette.amber)
+            Text("Cycle: ${formatSeconds(plan.cycle)}")
+            Text("Green: ${formatSeconds(plan.green)}" + if (e.greenMeasured) "" else " (guess: record red too)")
+            Text("Mean error: ${formatSeconds(e.rmsError)} over ${e.greenStarts} starts of green")
+            if (e.contradictions > 0) Text("Contradicting observations: ${e.contradictions}", color = Palette.amber)
             if (e.alternativeCycles.isNotEmpty()) {
                 Text(
-                    "Cicli alternativi possibili: " + e.alternativeCycles.joinToString { formatSeconds(it) } +
-                        ". Registra anche passaggi col verde e fermate col rosso per distinguerli.",
+                    "Other possible cycles: " + e.alternativeCycles.joinToString { formatSeconds(it) } +
+                        ". Also record red lights and wait at red with GPS on to tell them apart.",
                     color = Palette.amber,
                 )
             }
@@ -155,14 +155,14 @@ private fun LiveState(
     val t = toSecondsOfDay(now)
     val green = plan.isGreen(t)
     Text(
-        "Adesso: ${if (green) "VERDE" else "ROSSO"}, cambia tra ${plan.secondsToChange(t).toInt()} s",
+        "Now: ${if (green) "GREEN" else "RED"}, changes in ${plan.secondsToChange(t).toInt()} s",
         color = if (green) Palette.green else Palette.red,
         style = MaterialTheme.typography.titleMedium,
         modifier = Modifier.padding(top = 8.dp),
     )
     val next = plan.greenWindows(t, t + 10 * 60).filter { it.start > t }.take(5)
     Text(
-        "Prossimi verdi: " + next.joinToString { formatTime(toEpochMillis(now, it.start)) },
+        "Next greens: " + next.joinToString { formatTime(toEpochMillis(now, it.start)) },
         style = MaterialTheme.typography.bodySmall,
     )
 }

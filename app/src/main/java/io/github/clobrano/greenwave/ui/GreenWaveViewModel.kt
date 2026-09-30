@@ -32,7 +32,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Semaforo a cui verrà attribuita la prossima osservazione manuale. */
+/** Traffic light the next manual observation will be assigned to. */
 data class RecordTarget(val light: TrafficLightEntity, val automatic: Boolean)
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -54,7 +54,7 @@ class GreenWaveViewModel(application: Application) : AndroidViewModel(applicatio
         .flatMapLatest { granted -> if (granted) app.locationTracker.fixes() else emptyFlow() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    /** Battito ogni secondo per countdown e stato "ora". */
+    /** Ticks every second for countdowns and the "now" state. */
     val now: StateFlow<Long> = flow {
         while (true) {
             emit(clock.now())
@@ -62,7 +62,7 @@ class GreenWaveViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), clock.now())
 
-    /** Stime per la fascia oraria attuale, ricalcolate quando cambiano i dati o ogni minuto. */
+    /** Estimates for the current time band, recomputed when the data changes or every minute. */
     val estimates: StateFlow<Map<Long, LightEstimate>> =
         combine(observations, now.map { it / 60_000 }.distinctUntilChanged()) { obs, minute -> obs to minute }
             .map { (obs, _) -> repository.estimate(obs, clock.now()) }
@@ -95,7 +95,7 @@ class GreenWaveViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun record(kind: ObservationKind) {
         val target = recordTarget.value ?: return
-        // L'istante si prende subito, prima di qualsiasi lavoro asincrono.
+        // Take the instant right away, before any asynchronous work.
         val now = clock.now()
         val observation = ObservationEntity(
             lightId = target.light.id,
@@ -111,13 +111,13 @@ class GreenWaveViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    /** Osservazione aggiunta insieme a [lastSaved] (l'attesa al rosso), da annullare con essa. */
+    /** Observation added together with [lastSaved] (the wait at red), undone with it. */
     private var lastSavedExtra: ObservationEntity? = null
 
     /**
-     * Se il GPS dice che ero fermo vicino al semaforo prima del verde, in quell'intervallo
-     * era rosso: lo si registra come RED_SEEN. Questa informazione permette allo stimatore
-     * di distinguere il ciclo vero dalla sua metà.
+     * If GPS says I was stopped near the light before the green, it was red during that
+     * interval: record it as RED_SEEN. This lets the estimator tell the true cycle apart
+     * from half of it.
      */
     private fun redWaitObservation(light: TrafficLightEntity, greenAt: Long): ObservationEntity? {
         val f = fix.value ?: return null

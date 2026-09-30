@@ -61,7 +61,7 @@ import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.Point
 
-// Stile vettoriale gratuito basato su OpenStreetMap, senza chiave API.
+// Free OpenStreetMap-based vector style, no API key needed.
 private const val STYLE_URL = "https://tiles.openfreemap.org/styles/liberty"
 private const val LIGHTS_SOURCE = "lights"
 private const val LIGHTS_LAYER = "lights-circles"
@@ -93,7 +93,7 @@ fun MapScreen(
 
         Column(Modifier.align(Alignment.TopCenter).padding(12.dp)) {
             if (lights.isEmpty()) {
-                Card { Text("Tieni premuto sulla mappa per aggiungere un semaforo", Modifier.padding(12.dp)) }
+                Card { Text("Long-press on the map to add a traffic light", Modifier.padding(12.dp)) }
             }
         }
 
@@ -109,10 +109,10 @@ fun MapScreen(
                 Column(Modifier.padding(12.dp)) {
                     Text(selected.name, style = MaterialTheme.typography.titleMedium)
                     Text(estimate?.status.label, color = estimate?.status.color)
-                    estimate?.plan?.let { Text("Ciclo ${formatSeconds(it.cycle)}, verde ${formatSeconds(it.green)}") }
+                    estimate?.plan?.let { Text("Cycle ${formatSeconds(it.cycle)}, green ${formatSeconds(it.green)}") }
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { selectedId = null }) { Text("Chiudi") }
-                        Button(onClick = { onOpenLight(selected.id) }) { Text("Dettagli") }
+                        TextButton(onClick = { selectedId = null }) { Text("Close") }
+                        Button(onClick = { onOpenLight(selected.id) }) { Text("Details") }
                     }
                 }
             }
@@ -230,7 +230,7 @@ private fun LightsMap(
         source.setGeoJson(Feature.fromGeometry(Point.fromLngLat(me.lon, me.lat)))
     }
 
-    // Prima centratura: sulla mia posizione o, in mancanza, sul primo semaforo.
+    // First centering: on my position or, failing that, on the first light.
     LaunchedEffect(map, fix != null, lights.isNotEmpty()) {
         val m = map ?: return@LaunchedEffect
         if (centered) return@LaunchedEffect

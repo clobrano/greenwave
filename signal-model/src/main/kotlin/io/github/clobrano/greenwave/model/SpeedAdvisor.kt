@@ -1,8 +1,8 @@
 package io.github.clobrano.greenwave.model
 
-/** Consiglio di velocità verso il prossimo semaforo. Velocità in m/s, tempi in secondi. */
+/** Speed advice toward the next traffic light. Speeds in m/s, times in seconds. */
 sealed interface SpeedAdvice {
-    /** Arrivando a una velocità in [minSpeed, maxSpeed] si trova verde; [targetSpeed] è la più vicina a quella attuale. */
+    /** Arriving at a speed in [minSpeed, maxSpeed] finds green; [targetSpeed] is the closest to the current one. */
     data class Go(
         val targetSpeed: Double,
         val minSpeed: Double,
@@ -10,34 +10,34 @@ sealed interface SpeedAdvice {
         val window: TimeWindow,
     ) : SpeedAdvice
 
-    /** Nessuna velocità ammessa arriva col verde: rallentare dolcemente. */
+    /** No allowed speed arrives on green: slow down gently. */
     data class RedUnavoidable(
-        /** Inizio del primo verde raggiungibile. */
+        /** Start of the first reachable green. */
         val nextGreenStart: Double,
-        /** Velocità (anche sotto il minimo) per arrivare proprio all'inizio di quel verde. */
+        /** Speed (possibly below the minimum) to arrive right at the start of that green. */
         val speedToCatchIt: Double,
     ) : SpeedAdvice
 
-    /** Nessun piano affidabile per questo semaforo. */
+    /** No reliable plan for this light. */
     data object NoPrediction : SpeedAdvice
 }
 
 /**
- * GLOSA (Green Light Optimal Speed Advisory): quale velocità tenere per arrivare
- * al prossimo semaforo durante una finestra di verde.
+ * GLOSA (Green Light Optimal Speed Advisory): which speed to keep to reach the next
+ * traffic light during a green window.
  *
- * L'arrivo al tempo `now + d / v` deve cadere in una finestra [a, b] ridotta di un margine
- * di sicurezza ai due bordi, quindi `v ∈ [d / (b - margin - now), d / (a + margin - now)]`,
- * intersecato con [velocità minima, limite]. Non si consiglia mai di superare il limite.
+ * The arrival at `now + d / v` must fall in a window [a, b] shrunk by a safety margin at
+ * both edges, so `v ∈ [d / (b - margin - now), d / (a + margin - now)]`, intersected with
+ * [minimum speed, limit]. It never advises going over the speed limit.
  */
 class SpeedAdvisor(private val config: Config = Config()) {
 
     data class Config(
-        /** Sotto questa velocità si intralcia il traffico (default 25 km/h). */
+        /** Below this speed you hold up traffic (default 25 km/h). */
         val minSpeed: Double = 25.0 / 3.6,
-        /** Margine (s) dai bordi della finestra di verde. */
+        /** Margin (s) from the edges of the green window. */
         val safetyMargin: Double = 2.0,
-        /** Quanto avanti (s) cercare finestre di verde. */
+        /** How far ahead (s) to look for green windows. */
         val horizon: Double = 300.0,
     )
 
@@ -54,7 +54,7 @@ class SpeedAdvisor(private val config: Config = Config()) {
         val d = maxOf(distance, 0.0)
 
         for (window in plan.greenWindows(now, now + config.horizon)) {
-            // Una finestra già iniziata non richiede margine all'inizio.
+            // A window that has already started needs no margin at its start.
             val earliest = if (window.start > now) window.start + config.safetyMargin else now
             val latest = window.end - config.safetyMargin
             if (latest <= earliest || latest <= now) continue

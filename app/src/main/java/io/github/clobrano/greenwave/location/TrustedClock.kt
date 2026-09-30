@@ -4,9 +4,9 @@ import android.location.Location
 import android.os.SystemClock
 
 /**
- * Orologio corretto con l'ora dei satelliti. L'orologio del telefono può sbagliare di
- * qualche secondo, abbastanza da rovinare le previsioni: a ogni fix GPS si misura lo
- * scarto tra ora GNSS e orologio di sistema e lo si applica a [now].
+ * Clock corrected with satellite time. The phone clock can be off by a few seconds,
+ * enough to ruin predictions: on every GPS fix we measure the offset between GNSS time
+ * and the system clock and apply it in [now].
  */
 class TrustedClock {
     private val offsets = ArrayDeque<Long>()
@@ -14,19 +14,19 @@ class TrustedClock {
     @Volatile
     private var offsetMillis: Long = 0
 
-    /** True dopo almeno un fix GPS: [now] è allineato all'ora GNSS. */
+    /** True after at least one GPS fix: [now] is aligned to GNSS time. */
     @Volatile
     var synced: Boolean = false
         private set
 
     fun onGnssFix(location: Location) {
-        // Istante (orologio di sistema) in cui il fix è stato calcolato.
+        // Instant (system clock) at which the fix was computed.
         val ageMillis = (SystemClock.elapsedRealtimeNanos() - location.elapsedRealtimeNanos) / 1_000_000
         val systemAtFix = System.currentTimeMillis() - ageMillis
         synchronized(offsets) {
             offsets.addLast(location.time - systemAtFix)
             if (offsets.size > WINDOW) offsets.removeFirst()
-            // Mediana: robusta a qualche fix con ora sbagliata.
+            // Median: robust to a few fixes with a wrong time.
             offsetMillis = offsets.sorted()[offsets.size / 2]
         }
         synced = true

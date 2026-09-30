@@ -17,16 +17,16 @@ android {
         versionCode = 1
         versionName = "0.1.0"
 
-        // Solo arm64 (tutti i Fairphone recenti): le librerie native di MapLibre
-        // per le altre architetture quadruplicherebbero la dimensione dell'APK.
+        // arm64 only (all recent Fairphones): MapLibre's native libraries for
+        // the other architectures would quadruple the APK size.
         ndk {
             abiFilters += "arm64-v8a"
         }
     }
 
     signingConfigs {
-        // Chiave di debug nel repository: stessa firma su ogni macchina e in CI,
-        // così l'APK nuovo si installa sopra il vecchio senza perdere i dati.
+        // Debug key kept in the repository: same signature on every machine and in CI,
+        // so a new APK installs over the old one without losing data.
         getByName("debug") {
             storeFile = file("debug.keystore")
             storePassword = "android"

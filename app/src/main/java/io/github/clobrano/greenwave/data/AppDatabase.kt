@@ -32,7 +32,7 @@ interface TrafficLightDao {
     @Delete
     suspend fun delete(light: TrafficLightEntity)
 
-    /** Scambia la posizione nel percorso di due semafori. */
+    /** Swaps the route position of two traffic lights. */
     @Transaction
     suspend fun swapOrder(a: TrafficLightEntity, b: TrafficLightEntity) {
         update(a.copy(routeOrder = b.routeOrder), b.copy(routeOrder = a.routeOrder))

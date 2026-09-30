@@ -2,20 +2,20 @@ package io.github.clobrano.greenwave.model
 
 import kotlin.math.floor
 
-/** Intervallo di tempo [start, end), in secondi. */
+/** Time interval [start, end), in seconds. */
 data class TimeWindow(val start: Double, val end: Double) {
     val duration: Double get() = end - start
     operator fun contains(t: Double): Boolean = t >= start && t < end
 }
 
 /**
- * Piano di un semaforo a tempo fisso.
+ * Plan of a fixed-time traffic light.
  *
- * Il verde inizia agli istanti `offset + k * cycle` (k intero) e dura `green` secondi;
- * per il resto del ciclo il semaforo è rosso (il giallo è contato come rosso).
+ * Green starts at `offset + k * cycle` (k integer) and lasts `green` seconds;
+ * the rest of the cycle is red (amber counts as red).
  *
- * Tutti i tempi sono in secondi su una scala scelta dal chiamante: l'app usa i secondi
- * dalla mezzanotte locale, così un piano imparato un giorno vale anche i giorni seguenti.
+ * All times are in seconds on a scale chosen by the caller: the app uses seconds since
+ * local midnight, so a plan learned on one day also applies to the following days.
  */
 data class SignalPlan(val cycle: Double, val green: Double, val offset: Double) {
     init {
@@ -23,24 +23,24 @@ data class SignalPlan(val cycle: Double, val green: Double, val offset: Double) 
         require(green in 0.0..cycle) { "green must be in [0, cycle]: $green" }
     }
 
-    /** Secondi trascorsi dall'ultimo inizio del verde, in [0, cycle). */
+    /** Seconds since the last start of green, in [0, cycle). */
     fun phaseAt(t: Double): Double = positiveMod(t - offset, cycle)
 
     fun isGreen(t: Double): Boolean = phaseAt(t) < green
 
-    /** Primo inizio del verde a partire da [t] (incluso). */
+    /** First start of green at or after [t]. */
     fun nextGreenStart(t: Double): Double {
         val phase = phaseAt(t)
         return if (phase == 0.0) t else t + cycle - phase
     }
 
-    /** Secondi mancanti al prossimo cambio di colore. */
+    /** Seconds until the next color change. */
     fun secondsToChange(t: Double): Double {
         val phase = phaseAt(t)
         return if (phase < green) green - phase else cycle - phase
     }
 
-    /** Finestre di verde che si sovrappongono all'intervallo [from, until). */
+    /** Green windows overlapping the interval [from, until). */
     fun greenWindows(from: Double, until: Double): List<TimeWindow> {
         if (green <= 0.0) return emptyList()
         val windows = mutableListOf<TimeWindow>()
@@ -54,11 +54,11 @@ data class SignalPlan(val cycle: Double, val green: Double, val offset: Double) 
     }
 }
 
-/** Modulo sempre positivo, in [0, m). */
+/** Always-positive modulo, in [0, m). */
 internal fun positiveMod(a: Double, m: Double): Double {
     val r = a % m
     return if (r < 0.0) r + m else r
 }
 
-/** Scarto con segno rispetto al multiplo di [m] più vicino, in [-m/2, m/2). */
+/** Signed distance from the nearest multiple of [m], in [-m/2, m/2). */
 internal fun signedMod(a: Double, m: Double): Double = positiveMod(a + m / 2.0, m) - m / 2.0

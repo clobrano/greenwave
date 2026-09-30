@@ -11,34 +11,34 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 
-/** Posizione corrente semplificata per l'interfaccia. */
+/** Current position, simplified for the UI. */
 data class Fix(
     val position: GeoPoint,
-    /** Velocità in m/s, null se non nota. */
+    /** Speed in m/s, null if unknown. */
     val speed: Double?,
-    /** Ultima direzione di marcia affidabile (gradi), mantenuta anche da fermo. */
+    /** Last reliable driving direction (degrees), kept while stopped too. */
     val heading: Double?,
     val accuracyMeters: Double?,
-    /** Da quando (epoch ms, ora corretta) sono fermo; null se in movimento. */
+    /** Since when (epoch ms, corrected time) I have been stopped; null if moving. */
     val stoppedSince: Long?,
 )
 
 /**
- * Posizioni dal GPS tramite il LocationManager di Android (non richiede i servizi Google,
- * quindi funziona anche su sistemi come /e/OS). Aggiorna anche [TrustedClock] con l'ora GNSS.
+ * GPS positions from Android's LocationManager (no Google services needed, so it also
+ * works on systems like /e/OS). Also feeds [TrustedClock] with GNSS time.
  */
 class LocationTracker(
     private val locationManager: LocationManager,
     private val clock: TrustedClock,
 ) {
-    /** Richiede il permesso ACCESS_FINE_LOCATION già concesso. */
+    /** Requires the ACCESS_FINE_LOCATION permission to be granted already. */
     @SuppressLint("MissingPermission")
     fun fixes(): Flow<Fix> = callbackFlow {
         var lastHeading: Double? = null
         var stoppedSince: Long? = null
         val listener = LocationListener { location: Location ->
             if (location.provider == LocationManager.GPS_PROVIDER) clock.onGnssFix(location)
-            // Da fermo la direzione del GPS non è affidabile: si tiene l'ultima nota.
+            // GPS bearing is unreliable while stopped: keep the last known one.
             if (location.hasBearing() && location.hasSpeed() && location.speed > MIN_SPEED_FOR_HEADING) {
                 lastHeading = location.bearing.toDouble()
             }

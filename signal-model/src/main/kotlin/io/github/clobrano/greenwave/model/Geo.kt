@@ -12,7 +12,7 @@ data class GeoPoint(val lat: Double, val lon: Double)
 object Geo {
     private const val EARTH_RADIUS_M = 6_371_000.0
 
-    /** Distanza in metri (formula dell'emisenoverso). */
+    /** Distance in meters (haversine formula). */
     fun distance(a: GeoPoint, b: GeoPoint): Double {
         val dLat = Math.toRadians(b.lat - a.lat)
         val dLon = Math.toRadians(b.lon - a.lon)
@@ -21,7 +21,7 @@ object Geo {
         return 2 * EARTH_RADIUS_M * asin(sqrt(h))
     }
 
-    /** Direzione da [a] verso [b] in gradi, 0 = nord, 90 = est. */
+    /** Direction from [a] to [b] in degrees, 0 = north, 90 = east. */
     fun bearing(a: GeoPoint, b: GeoPoint): Double {
         val lat1 = Math.toRadians(a.lat)
         val lat2 = Math.toRadians(b.lat)
@@ -31,16 +31,16 @@ object Geo {
         return positiveMod(Math.toDegrees(atan2(y, x)), 360.0)
     }
 
-    /** Differenza assoluta tra due direzioni, in [0, 180] gradi. */
+    /** Absolute difference between two directions, in [0, 180] degrees. */
     fun angleDifference(a: Double, b: Double): Double = abs(signedMod(a - b, 360.0))
 }
 
-/** Un semaforo come lo vede il selettore: posizione e direzione di marcia (null = qualsiasi). */
+/** A traffic light as seen by the matcher: position and driving direction (null = any). */
 data class LightPosition(val id: Long, val position: GeoPoint, val approachBearing: Double?)
 
 /**
- * Sceglie il semaforo a cui si riferisce un'osservazione: il più vicino entro [maxDistance],
- * scartando quelli con una direzione di marcia diversa dalla mia di oltre [maxAngle] gradi.
+ * Picks the traffic light an observation refers to: the nearest one within [maxDistance],
+ * skipping those whose driving direction differs from mine by more than [maxAngle] degrees.
  */
 class LightMatcher(
     private val maxDistance: Double = 80.0,
