@@ -2,6 +2,7 @@ package io.github.clobrano.greenwave.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -72,6 +73,7 @@ private fun GreenWaveApp(viewModel: GreenWaveViewModel) {
     val now by viewModel.now.collectAsStateWithLifecycle()
     val target by viewModel.recordTarget.collectAsStateWithLifecycle()
     val lastSaved by viewModel.lastSaved.collectAsStateWithLifecycle()
+    val trip by viewModel.tripState.collectAsStateWithLifecycle()
 
     var tab by rememberSaveable { mutableStateOf(Tab.MAP) }
     var openLightId by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -81,9 +83,10 @@ private fun GreenWaveApp(viewModel: GreenWaveViewModel) {
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { result -> viewModel.onLocationPermission(result[Manifest.permission.ACCESS_FINE_LOCATION] == true) }
     LaunchedEffect(Unit) {
-        permissionLauncher.launch(
-            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
-        )
+        val permissions = listOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION) +
+            // Needed to show the trip recording notification.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) listOf(Manifest.permission.POST_NOTIFICATIONS) else emptyList()
+        permissionLauncher.launch(permissions.toTypedArray())
     }
 
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -146,6 +149,13 @@ private fun GreenWaveApp(viewModel: GreenWaveViewModel) {
                     onRecord = viewModel::record,
                     onUndo = viewModel::undoLast,
                     toSecondsOfDay = viewModel::secondsOfDay,
+                    trip = trip,
+                    onStartTrip = {
+                        if (fix == null || !viewModel.startTrip()) {
+                            Toast.makeText(context, "Allow location access and turn on GPS first", Toast.LENGTH_LONG).show()
+                        }
+                    },
+                    onStopTrip = viewModel::stopTrip,
                 )
                 else -> LightsScreen(
                     lights = lights,

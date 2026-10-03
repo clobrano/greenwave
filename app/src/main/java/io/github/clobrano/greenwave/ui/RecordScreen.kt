@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
@@ -36,6 +37,7 @@ import io.github.clobrano.greenwave.data.ObservationEntity
 import io.github.clobrano.greenwave.data.TrafficLightEntity
 import io.github.clobrano.greenwave.location.Fix
 import io.github.clobrano.greenwave.model.ObservationKind
+import io.github.clobrano.greenwave.trip.TripState
 
 /** Above this speed (m/s) the buttons are disabled: record only while stopped. */
 private const val MAX_SPEED_FOR_BUTTONS = 5.0 / 3.6
@@ -53,6 +55,9 @@ fun RecordScreen(
     onRecord: (ObservationKind) -> Unit,
     onUndo: () -> Unit,
     toSecondsOfDay: (Long) -> Double,
+    trip: TripState,
+    onStartTrip: () -> Unit,
+    onStopTrip: () -> Unit,
 ) {
     // Keep the screen on while recording.
     val view = LocalView.current
@@ -68,6 +73,7 @@ fun RecordScreen(
         Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        TripCard(trip, onStartTrip, onStopTrip)
         TargetSelector(lights, target, onChooseTarget)
 
         val plan = target?.let { estimates[it.light.id]?.estimate?.plan }
@@ -112,6 +118,34 @@ fun RecordScreen(
                     )
                     TextButton(onClick = onUndo) { Text("Undo") }
                 }
+            }
+        }
+    }
+}
+
+/** Automatic recording from GPS: start/stop and what it has detected so far. */
+@Composable
+private fun TripCard(trip: TripState, onStart: () -> Unit, onStop: () -> Unit) {
+    Card(Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    if (trip.recording) "Auto-recording · ${trip.detected} events" else "Auto-record trip",
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    trip.lastEvent ?: if (trip.recording) {
+                        "Drive as usual: stops and passes at your lights are recorded"
+                    } else {
+                        "Detects red and green from GPS, also with the screen off"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            if (trip.recording) {
+                OutlinedButton(onClick = onStop) { Text("Stop") }
+            } else {
+                Button(onClick = onStart) { Text("Start") }
             }
         }
     }

@@ -10,6 +10,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Transaction
 import androidx.room.Update
+import io.github.clobrano.greenwave.model.ObservationKind
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -49,6 +50,9 @@ interface ObservationDao {
 
     @Insert
     suspend fun insert(observation: ObservationEntity): Long
+
+    @Query("SELECT COUNT(*) FROM observation WHERE lightId = :lightId AND kind = :kind AND epochMillis BETWEEN :from AND :to")
+    suspend fun countNear(lightId: Long, kind: ObservationKind, from: Long, to: Long): Int
 
     @Delete
     suspend fun delete(observation: ObservationEntity)

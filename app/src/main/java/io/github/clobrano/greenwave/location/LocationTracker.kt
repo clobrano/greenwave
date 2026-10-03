@@ -21,6 +21,10 @@ data class Fix(
     val accuracyMeters: Double?,
     /** Since when (epoch ms, corrected time) I have been stopped; null if moving. */
     val stoppedSince: Long?,
+    /** When the fix was taken (epoch ms): GNSS time for GPS fixes, corrected clock otherwise. */
+    val timeMillis: Long,
+    /** True for satellite fixes; network fixes are coarse and have no speed. */
+    val fromGps: Boolean,
 )
 
 /**
@@ -37,7 +41,8 @@ class LocationTracker(
         var lastHeading: Double? = null
         var stoppedSince: Long? = null
         val listener = LocationListener { location: Location ->
-            if (location.provider == LocationManager.GPS_PROVIDER) clock.onGnssFix(location)
+            val fromGps = location.provider == LocationManager.GPS_PROVIDER
+            if (fromGps) clock.onGnssFix(location)
             // GPS bearing is unreliable while stopped: keep the last known one.
             if (location.hasBearing() && location.hasSpeed() && location.speed > MIN_SPEED_FOR_HEADING) {
                 lastHeading = location.bearing.toDouble()
@@ -55,6 +60,8 @@ class LocationTracker(
                     heading = lastHeading,
                     accuracyMeters = if (location.hasAccuracy()) location.accuracy.toDouble() else null,
                     stoppedSince = stoppedSince,
+                    timeMillis = if (fromGps) location.time else clock.now(),
+                    fromGps = fromGps,
                 ),
             )
         }

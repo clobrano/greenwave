@@ -14,6 +14,8 @@ import io.github.clobrano.greenwave.model.Geo
 import io.github.clobrano.greenwave.model.GeoPoint
 import io.github.clobrano.greenwave.model.LightMatcher
 import io.github.clobrano.greenwave.model.ObservationKind
+import io.github.clobrano.greenwave.trip.TripRecorderService
+import io.github.clobrano.greenwave.trip.TripState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -84,6 +86,15 @@ class GreenWaveViewModel(application: Application) : AndroidViewModel(applicatio
     val lastSaved: StateFlow<ObservationEntity?> = _lastSaved.asStateFlow()
 
     val clockSynced: Boolean get() = clock.synced
+
+    val tripState: StateFlow<TripState> = app.tripState.state
+
+    /** Starts automatic recording from GPS; returns false if Android refused to start it. */
+    fun startTrip(): Boolean = runCatching { TripRecorderService.start(app) }.isSuccess
+
+    fun stopTrip() {
+        TripRecorderService.stop(app)
+    }
 
     fun onLocationPermission(granted: Boolean) {
         locationPermission.value = granted
