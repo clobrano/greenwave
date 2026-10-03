@@ -9,8 +9,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -20,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,6 +69,8 @@ private const val LIGHTS_LAYER = "lights-circles"
 private const val LABELS_LAYER = "lights-labels"
 private const val ME_SOURCE = "me"
 private const val ME_LAYER = "me-circle"
+private const val FOLLOW_ZOOM = 17.0
+private const val FOLLOW_ANIMATION_MS = 900
 
 @Composable
 fun MapScreen(
@@ -78,14 +81,16 @@ fun MapScreen(
     onOpenLight: (Long) -> Unit,
 ) {
     var selectedId by remember { mutableStateOf<Long?>(null) }
-    var centerRequest by remember { mutableStateOf(0) }
+    // Locked on the car: the map follows the GPS position and driving direction.
+    var following by rememberSaveable { mutableStateOf(true) }
 
     Box(Modifier.fillMaxSize()) {
         LightsMap(
             lights = lights,
             estimates = estimates,
             fix = fix,
-            centerRequest = centerRequest,
+            following = following,
+            onUserPan = { following = false },
             onLongPress = onAddLight,
             onLightClick = { selectedId = it },
             modifier = Modifier.fillMaxSize(),
@@ -97,15 +102,18 @@ fun MapScreen(
             }
         }
 
-        SmallFloatingActionButton(
-            onClick = { centerRequest++ },
+        ExtendedFloatingActionButton(
+            onClick = { following = !following },
+            containerColor = if (following) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+            contentColor = if (following) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
-        ) { Text("◎", style = MaterialTheme.typography.titleLarge) }
+        ) { Text(if (following) "◉ Unlock map" else "◎ Follow car") }
 
         val selected = lights.firstOrNull { it.id == selectedId }
         if (selected != null) {
             val estimate = estimates[selected.id]?.estimate
-            Card(Modifier.align(Alignment.BottomStart).padding(16.dp).fillMaxWidth(0.75f)) {
+            // Above the follow button, so the two never overlap.
+            Card(Modifier.align(Alignment.BottomStart).padding(start = 16.dp, end = 16.dp, bottom = 88.dp).fillMaxWidth(0.75f)) {
                 Column(Modifier.padding(12.dp)) {
                     Text(selected.name, style = MaterialTheme.typography.titleMedium)
                     Text(estimate?.status.label, color = estimate?.status.color)
@@ -125,7 +133,8 @@ private fun LightsMap(
     lights: List<TrafficLightEntity>,
     estimates: Map<Long, LightEstimate>,
     fix: Fix?,
-    centerRequest: Int,
+    following: Boolean,
+    onUserPan: () -> Unit,
     onLongPress: (GeoPoint) -> Unit,
     onLightClick: (Long) -> Unit,
     modifier: Modifier = Modifier,
@@ -141,6 +150,7 @@ private fun LightsMap(
     var centered by remember { mutableStateOf(false) }
     val currentOnLongPress by rememberUpdatedState(onLongPress)
     val currentOnLightClick by rememberUpdatedState(onLightClick)
+    val currentOnUserPan by rememberUpdatedState(onUserPan)
 
     DisposableEffect(lifecycle, mapView) {
         val observer = LifecycleEventObserver { _, event ->
@@ -197,6 +207,10 @@ private fun LightsMap(
                 )
                 style = s
             }
+            // Moving the map by hand releases the lock on the car.
+            m.addOnCameraMoveStartedListener { reason ->
+                if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) currentOnUserPan()
+            }
             m.addOnMapLongClickListener { latLng ->
                 currentOnLongPress(GeoPoint(latLng.latitude, latLng.longitude))
                 true
@@ -230,19 +244,33 @@ private fun LightsMap(
         source.setGeoJson(Feature.fromGeometry(Point.fromLngLat(me.lon, me.lat)))
     }
 
-    // First centering: on my position or, failing that, on the first light.
-    LaunchedEffect(map, fix != null, lights.isNotEmpty()) {
+    // First centering when not following or before the first fix: on the first light.
+    LaunchedEffect(map, lights.isNotEmpty()) {
         val m = map ?: return@LaunchedEffect
-        if (centered) return@LaunchedEffect
-        val target = fix?.position ?: lights.firstOrNull()?.position ?: return@LaunchedEffect
+        if (centered || fix != null) return@LaunchedEffect
+        val target = lights.firstOrNull()?.position ?: return@LaunchedEffect
         m.cameraPosition = CameraPosition.Builder().target(LatLng(target.lat, target.lon)).zoom(16.0).build()
         centered = true
     }
 
-    LaunchedEffect(centerRequest) {
-        if (centerRequest == 0) return@LaunchedEffect
-        val target = fix?.position ?: return@LaunchedEffect
-        map?.animateCamera(CameraUpdateFactory.newLatLng(LatLng(target.lat, target.lon)))
+    // Follow the car: center on every fix and turn the map to the driving direction.
+    // The animation lasts about as long as the GPS interval, so the movement looks continuous.
+    LaunchedEffect(map, fix, following) {
+        val m = map ?: return@LaunchedEffect
+        val me = fix?.position ?: return@LaunchedEffect
+        if (!following) return@LaunchedEffect
+        val current = m.cameraPosition
+        val position = CameraPosition.Builder()
+            .target(LatLng(me.lat, me.lon))
+            .zoom(if (centered) current.zoom else FOLLOW_ZOOM)
+            .bearing(fix.heading ?: current.bearing)
+            .build()
+        if (centered) {
+            m.easeCamera(CameraUpdateFactory.newCameraPosition(position), FOLLOW_ANIMATION_MS, false)
+        } else {
+            m.cameraPosition = position
+            centered = true
+        }
     }
 
     AndroidView(factory = { mapView }, modifier = modifier)

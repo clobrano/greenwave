@@ -24,7 +24,9 @@ over the old one without losing data.
 
 1. **Map**: long-press on an intersection to add a traffic light. Set the driving direction
    you cross it with (or "Use mine" while on the road), so the app does not confuse it with
-   the light for the opposite lane.
+   the light for the opposite lane. While driving, the map stays locked on the car and turns
+   with the driving direction; "Unlock map" (or moving the map by hand) frees it, and
+   "Follow car" locks it again.
 2. **Record**: while stopped at the light, press **GREEN NOW** at the exact moment it turns
    green (and **RED NOW** when it turns amber, if you see it). The light is picked
    automatically (the nearest one in your direction) or by hand. The buttons are disabled
