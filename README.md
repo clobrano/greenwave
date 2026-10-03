@@ -31,7 +31,17 @@ over the old one without losing data.
    green (and **RED NOW** when it turns amber, if you see it). The light is picked
    automatically (the nearest one in your direction) or by hand. The buttons are disabled
    above 5 km/h. "Undo" deletes the last recording.
-3. **Lights**: the list is the route order (arrows to reorder). Each light's detail shows
+3. **Auto-record trip** (top of the Record tab): press Start before leaving and drive as
+   usual. The app follows the GPS, also with the screen off, and records by itself what
+   happens at each of your lights. A notification shows the events detected so far and has
+   a Stop button.
+   - Passing a light without stopping: it was green at that moment.
+   - Stopping within 60 m of a light: it was red from when you stopped, and it turned green
+     about 2 s before you moved off (more if cars were queued ahead of you; with more than
+     about 4 cars ahead only the red is kept).
+   - Stops farther away (a pedestrian crossing, a car turning) are ignored, and a button
+     press near the same moment is not recorded twice.
+4. **Lights**: the list is the route order (arrows to reorder). Each light's detail shows
    the estimated plan, the predicted state right now, the next greens and the observations
    (which can be deleted). "Export CSV" saves all observations.
 
@@ -61,6 +71,7 @@ The logic lives in the `signal-model` module, plain Kotlin without Android, test
 | `TripSimulator.kt` | Simulates the trip to compare departure times |
 | `TimeBands.kt` | Time bands and day types |
 | `Geo.kt` | Distances, bearings and picking the nearest light |
+| `PassDetector.kt` | Infers red and green at each light from the car's trajectory (stops, restarts, passes) |
 
 The `app` module holds the UI (Jetpack Compose), the map (MapLibre with
 [OpenFreeMap](https://openfreemap.org), data © OpenStreetMap contributors), the database
@@ -80,5 +91,5 @@ Requirements: JDK 21 and the Android SDK with platform 37.
 - [x] M1 – Map, traffic lights, GREEN/RED buttons, observations, CSV export
 - [x] Plan estimate and prediction in the light detail (ahead of M2)
 - [ ] M2 – Departure table for the route
-- [ ] M3 – Automatic recording from GPS (stops and restarts)
+- [x] M3 – Automatic recording from GPS (stops and restarts)
 - [ ] M4 – Assisted driving with speed advice

@@ -33,6 +33,17 @@ object Geo {
 
     /** Absolute difference between two directions, in [0, 180] degrees. */
     fun angleDifference(a: Double, b: Double): Double = abs(signedMod(a - b, 360.0))
+
+    /** Point [distance] meters away from [from] in direction [bearing] (degrees). */
+    fun offset(from: GeoPoint, bearing: Double, distance: Double): GeoPoint {
+        val angular = distance / EARTH_RADIUS_M
+        val theta = Math.toRadians(bearing)
+        val lat1 = Math.toRadians(from.lat)
+        val lon1 = Math.toRadians(from.lon)
+        val lat2 = asin(sin(lat1) * cos(angular) + cos(lat1) * sin(angular) * cos(theta))
+        val lon2 = lon1 + atan2(sin(theta) * sin(angular) * cos(lat1), cos(angular) - sin(lat1) * sin(lat2))
+        return GeoPoint(Math.toDegrees(lat2), Math.toDegrees(lon2))
+    }
 }
 
 /** A traffic light as seen by the matcher: position and driving direction (null = any). */

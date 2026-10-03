@@ -1,7 +1,9 @@
 package io.github.clobrano.greenwave.data
 
+import io.github.clobrano.greenwave.model.DetectedObservation
 import io.github.clobrano.greenwave.model.GeoPoint
 import io.github.clobrano.greenwave.model.Observation
+import io.github.clobrano.greenwave.model.ObservationKind
 import io.github.clobrano.greenwave.model.PlanEstimate
 import io.github.clobrano.greenwave.model.PlanEstimator
 import io.github.clobrano.greenwave.model.ScheduleSlot
@@ -53,6 +55,34 @@ class GreenWaveRepository(
         observation.copy(id = db.observations().insert(observation))
 
     suspend fun deleteObservation(observation: ObservationEntity) = db.observations().delete(observation)
+
+    /**
+     * Saves an observation inferred from GPS, unless the same thing was already recorded
+     * nearby in time (e.g. a GREEN NOW press, which also adds the wait at red).
+     * Returns the saved observation, or null if it was a duplicate.
+     */
+    suspend fun addDetected(detected: DetectedObservation, gnssTime: Boolean): ObservationEntity? {
+        val window = when (detected.kind) {
+            ObservationKind.GREEN_START -> 15_000L
+            ObservationKind.RED_SEEN -> 30_000L
+            else -> 0L
+        }
+        if (window > 0 && db.observations().countNear(
+                detected.lightId, detected.kind, detected.timeMillis - window, detected.timeMillis + window,
+            ) > 0
+        ) {
+            return null
+        }
+        return addObservation(
+            ObservationEntity(
+                lightId = detected.lightId,
+                epochMillis = detected.timeMillis,
+                kind = detected.kind,
+                source = ObservationSource.GPS,
+                gnssTime = gnssTime,
+            ),
+        )
+    }
 
     /** Estimates the plans of all traffic lights for the time band containing [nowMillis]. */
     fun estimate(observations: List<ObservationEntity>, nowMillis: Long): Map<Long, LightEstimate> {
