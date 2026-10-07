@@ -116,10 +116,23 @@ class GreenWaveViewModel(application: Application) : AndroidViewModel(applicatio
             gnssTime = clock.synced,
         )
         val waitedAtRed = if (kind == ObservationKind.GREEN_START) redWaitObservation(target.light, now) else null
+        learnDirection(target.light)
         viewModelScope.launch {
             lastSavedExtra = waitedAtRed?.let { repository.addObservation(it) }
             _lastSaved.value = repository.addObservation(observation)
         }
+    }
+
+    /**
+     * A light without a direction takes the one I was driving in when I record at it:
+     * the heading is the last one measured while moving, so it is valid while stopped.
+     */
+    private fun learnDirection(light: TrafficLightEntity) {
+        if (light.approachBearing != null) return
+        val f = fix.value ?: return
+        val heading = f.heading ?: return
+        if (Geo.distance(f.position, light.position) > MAX_DISTANCE_FOR_RED_WAIT_M) return
+        viewModelScope.launch { repository.updateLight(light.copy(approachBearing = heading)) }
     }
 
     /** Observation added together with [lastSaved] (the wait at red), undone with it. */

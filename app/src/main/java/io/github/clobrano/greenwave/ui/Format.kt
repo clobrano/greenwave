@@ -50,9 +50,18 @@ val PlanStatus?.color: Color
         null -> Palette.gray
     }
 
+/**
+ * A light without a direction could be any of the lights at a crossroads, so automatic
+ * recording skips it: it can only be recorded with the buttons.
+ */
+const val ANY_DIRECTION = "Any (manual only)"
+
+/** Shown on lights that automatic recording skips. */
+const val NO_DIRECTION_WARNING = "No direction set: not recorded automatically"
+
 /** Directions offered when creating a traffic light. */
 val compassDirections: List<Pair<String, Double?>> = listOf(
-    "Any" to null,
+    ANY_DIRECTION to null,
     "North" to 0.0,
     "Northeast" to 45.0,
     "East" to 90.0,
@@ -65,7 +74,7 @@ val compassDirections: List<Pair<String, Double?>> = listOf(
 
 fun directionLabel(bearing: Double?): String =
     if (bearing == null) {
-        "Any"
+        ANY_DIRECTION
     } else {
         compassDirections.drop(1).minBy { (_, b) -> Geo.angleDifference(bearing, b!!) }.first +
             " (${bearing.toInt()}°)"

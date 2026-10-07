@@ -22,8 +22,11 @@ data class DetectedObservation(val lightId: Long, val timeMillis: Long, val kind
 /**
  * Infers traffic light colors from the car's trajectory, without any button.
  *
- * While approaching a light (ahead of the car, on the same road, matching its driving
- * direction) it records the stops; when the car passes the light it decides:
+ * Only lights with a driving direction are tracked, and only while the car drives in that
+ * direction: at a crossroads, crossing on the other road passes close to the lights of the
+ * main road but must not count for them. While approaching a light (ahead of the car, on the
+ * same road, matching its driving direction) it records the stops; turning off into another
+ * road before the light drops it. When the car passes the light it decides:
  * - no stop near the light: it was green when the car crossed it (GREEN_SEEN);
  * - stopped near the light: it was red from the first stop (RED_SEEN), and it turned
  *   green shortly before the last restart (GREEN_START), minus the reaction delay and
@@ -42,6 +45,12 @@ class PassDetector(
         val lateralTolerance: Double = 25.0,
         /** Maximum difference (degrees) between my direction and the light's driving direction. */
         val maxAngle: Double = 45.0,
+        /**
+         * Turning away from the light's direction farther than this (m) from the light means
+         * I left its road; closer than this it is the turn at the intersection itself, after
+         * crossing the stop line, so the pass still counts.
+         */
+        val turnOffDistance: Double = 20.0,
         /** Only stops this close to the light (m) count as stops at that light. */
         val stopZone: Double = 60.0,
         /** Beyond this distance (m) the queue is too long to estimate the start of green. */
@@ -68,8 +77,6 @@ class PassDetector(
         val stops = mutableListOf<Stop>()
         var lastAlong: Double? = null
         var lastTimeMillis: Long = 0
-        var minDistance = Double.MAX_VALUE
-        var minDistanceTimeMillis: Long = 0
     }
 
     private var lights: List<LightPosition> = lights
@@ -83,24 +90,26 @@ class PassDetector(
 
     fun onSample(sample: DriveSample): List<DetectedObservation> {
         sample.heading?.let { lastHeading = it }
-        val heading = lastHeading
-        val current = approach ?: findApproach(sample.position, heading)?.also { approach = it } ?: return emptyList()
+        val current = approach ?: findApproach(sample.position, lastHeading)?.also { approach = it } ?: return emptyList()
+        val bearing = checkNotNull(current.light.approachBearing)
 
-        val distance = Geo.distance(sample.position, current.light.position)
-        val along = heading?.let { alongTrack(sample.position, current.light.position, it) }
+        // Distance before the light measured along the light's own road (negative = past it).
+        // Unlike the car's heading, this does not change when the car turns.
+        val along = alongTrack(sample.position, current.light.position, bearing)
 
-        if (distance < current.minDistance) {
-            current.minDistance = distance
-            current.minDistanceTimeMillis = sample.timeMillis
+        // Driving off the light's direction well before it means I turned into another road.
+        if (sample.heading != null && along > config.turnOffDistance &&
+            Geo.angleDifference(sample.heading, bearing) > config.maxAngle
+        ) {
+            approach = null
+            return emptyList()
         }
-        trackStops(current, sample, along ?: distance)
 
-        val passedByHeading = along != null && along <= 0.0 && (current.lastAlong ?: 1.0) > 0.0
-        val passedByDistance = along == null && current.minDistance < 30.0 && distance > current.minDistance + 20.0
+        trackStops(current, sample, along)
+
         val result = when {
-            passedByHeading -> finish(current, crossingTime(current, sample, along))
-            passedByDistance -> finish(current, current.minDistanceTimeMillis)
-            distance > config.abandonDistance -> {
+            along <= 0.0 && (current.lastAlong ?: 1.0) > 0.0 -> finish(current, crossingTime(current, sample, along))
+            Geo.distance(sample.position, current.light.position) > config.abandonDistance -> {
                 approach = null
                 emptyList()
             }
@@ -119,8 +128,10 @@ class PassDetector(
                 val distance = Geo.distance(me, light.position)
                 val along = alongTrack(me, light.position, heading)
                 val lateral = abs(crossTrack(me, light.position, heading))
-                distance <= config.approachDistance && along > 0.0 && lateral <= config.lateralTolerance &&
-                    (light.approachBearing == null || Geo.angleDifference(heading, light.approachBearing) <= config.maxAngle)
+                // A light without a direction could be any of the lights at a crossroads: skip it.
+                light.approachBearing != null &&
+                    distance <= config.approachDistance && along > 0.0 && lateral <= config.lateralTolerance &&
+                    Geo.angleDifference(heading, light.approachBearing) <= config.maxAngle
             }
             .minByOrNull { Geo.distance(me, it.position) }
             ?.let { Approach(it) }

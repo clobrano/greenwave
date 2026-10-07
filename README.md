@@ -23,8 +23,10 @@ over the old one without losing data.
 ## How to use it (version 0.1)
 
 1. **Map**: long-press on an intersection to add a traffic light. Set the driving direction
-   you cross it with (or "Use mine" while on the road), so the app does not confuse it with
-   the light for the opposite lane. While driving, the map stays locked on the car and turns
+   you cross it with: it is pre-filled with your heading while driving, otherwise you must
+   choose it. The direction tells apart the lights of a crossroads, so a light set to "Any"
+   is only recorded with the buttons; such lights show a warning, and they take your
+   direction the first time you press GREEN NOW or RED NOW at them. While driving, the map stays locked on the car and turns
    with the driving direction; "Unlock map" (or moving the map by hand) frees it, and
    "Follow car" locks it again.
 2. **Record**: while stopped at the light, press **GREEN NOW** at the exact moment it turns
@@ -39,6 +41,8 @@ over the old one without losing data.
    - Stopping within 60 m of a light: it was red from when you stopped, and it turned green
      about 2 s before you moved off (more if cars were queued ahead of you; with more than
      about 4 cars ahead only the red is kept).
+   - Only lights whose direction matches yours count: crossing a crossroads on the other
+     road, or turning into a side street before the light, records nothing for it.
    - Stops farther away (a pedestrian crossing, a car turning) are ignored, and a button
      press near the same moment is not recorded twice.
 4. **Lights**: the list is the route order (arrows to reorder). Each light's detail shows
