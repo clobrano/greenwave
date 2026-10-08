@@ -30,6 +30,8 @@ data class LightForm(val name: String, val speedLimitKmh: Int, val approachBeari
 fun LightFormFields(
     form: LightForm,
     currentHeading: Double?,
+    directionChosen: Boolean = true,
+    onDirectionPicked: () -> Unit = {},
     onChange: (LightForm) -> Unit,
 ) {
     var limitText by remember { mutableStateOf(form.speedLimitKmh.toString()) }
@@ -55,21 +57,30 @@ fun LightFormFields(
         Row(verticalAlignment = Alignment.CenterVertically) {
             var open by remember { mutableStateOf(false) }
             Box {
-                OutlinedButton(onClick = { open = true }) { Text(directionLabel(form.approachBearing)) }
+                OutlinedButton(onClick = { open = true }) {
+                    Text(if (directionChosen) directionLabel(form.approachBearing) else "Choose…")
+                }
                 DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
                     compassDirections.forEach { (label, bearing) ->
                         DropdownMenuItem(
                             text = { Text(label) },
-                            onClick = { onChange(form.copy(approachBearing = bearing)); open = false },
+                            onClick = {
+                                onChange(form.copy(approachBearing = bearing))
+                                onDirectionPicked()
+                                open = false
+                            },
                         )
                     }
                 }
             }
             if (currentHeading != null) {
-                TextButton(onClick = { onChange(form.copy(approachBearing = currentHeading)) }) {
+                TextButton(onClick = { onChange(form.copy(approachBearing = currentHeading)); onDirectionPicked() }) {
                     Text("Use mine")
                 }
             }
+        }
+        if (directionChosen && form.approachBearing == null) {
+            Text(NO_DIRECTION_WARNING, color = Palette.amber, modifier = Modifier.padding(top = 4.dp))
         }
     }
 }
@@ -81,13 +92,21 @@ fun AddLightDialog(
     onConfirm: (LightForm) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var form by remember { mutableStateOf(LightForm(defaultName, 50, null)) }
+    // The direction is pre-filled with my heading when known; otherwise it must be chosen
+    // explicitly (picking "Any" is allowed, but then the light is only recorded by hand).
+    var form by remember { mutableStateOf(LightForm(defaultName, 50, currentHeading)) }
+    var directionChosen by remember { mutableStateOf(currentHeading != null) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("New traffic light") },
-        text = { LightFormFields(form, currentHeading) { form = it } },
+        text = {
+            LightFormFields(
+                form, currentHeading, directionChosen,
+                onDirectionPicked = { directionChosen = true },
+            ) { form = it }
+        },
         confirmButton = {
-            Button(onClick = { onConfirm(form) }, enabled = form.name.isNotBlank()) { Text("Add") }
+            Button(onClick = { onConfirm(form) }, enabled = form.name.isNotBlank() && directionChosen) { Text("Add") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )

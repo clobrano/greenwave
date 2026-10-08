@@ -58,6 +58,15 @@ fun LightDetailScreen(
                 Text(light.name, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
             }
         }
+        if (light.approachBearing == null) {
+            item {
+                Text(
+                    "$NO_DIRECTION_WARNING. Set the driving direction below, or record a green or red " +
+                        "here with the buttons and it will be taken from your heading.",
+                    color = Palette.amber,
+                )
+            }
+        }
         item { EstimateCard(estimate, now, toSecondsOfDay, toEpochMillis) }
         item {
             Card(Modifier.fillMaxWidth()) {

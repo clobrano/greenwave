@@ -51,6 +51,9 @@ fun LightsScreen(
                         Column(Modifier.weight(1f)) {
                             Text("${index + 1}. ${light.name}", style = MaterialTheme.typography.titleMedium)
                             Text(estimate?.status.label, color = estimate?.status.color)
+                            if (light.approachBearing == null) {
+                                Text(NO_DIRECTION_WARNING, color = Palette.amber, style = MaterialTheme.typography.bodySmall)
+                            }
                             Text(
                                 buildString {
                                     append("${counts[light.id] ?: 0} observations")

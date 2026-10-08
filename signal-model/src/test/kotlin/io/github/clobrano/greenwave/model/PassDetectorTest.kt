@@ -91,6 +91,91 @@ class PassDetectorTest {
         assertTrue(events.isEmpty(), "$events")
     }
 
+    /** A leg of a free-form drive: [seconds] at [speed] m/s toward [bearing] degrees. */
+    private data class Leg(val seconds: Int, val speed: Double, val bearing: Double)
+
+    /** Like [drive] but starting anywhere and turning between legs. */
+    private fun route(from: GeoPoint, lights: List<LightPosition>, vararg legs: Leg): List<DetectedObservation> {
+        val detector = PassDetector(lights)
+        val out = mutableListOf<DetectedObservation>()
+        var t = 0L
+        var position = from
+        for (leg in legs) {
+            repeat(leg.seconds) {
+                position = Geo.offset(position, leg.bearing, leg.speed)
+                t += 1000
+                val heading = if (leg.speed > 2.0) leg.bearing else null
+                out += detector.onSample(DriveSample(t, position, leg.speed, heading))
+            }
+        }
+        return out
+    }
+
+    // A crossroads 400 m north of the start: the main road runs north-south and both of its
+    // lights are tracked; the secondary road runs east-west and its lights are not.
+    private val crossroads = Geo.offset(start, 0.0, 400.0)
+    private val mainNorthbound = LightPosition(10, Geo.offset(crossroads, 180.0, 8.0), approachBearing = 0.0)
+    private val mainSouthbound = LightPosition(11, Geo.offset(crossroads, 0.0, 8.0), approachBearing = 180.0)
+
+    @Test
+    fun `crossing on the secondary road does not count for the main road lights`() {
+        // Eastbound through the crossroads, stopping 10 m before it and then moving on:
+        // the car passes a few meters from both main road lights.
+        val west = Geo.offset(crossroads, 270.0, 400.0)
+        val events = route(
+            west, listOf(mainNorthbound, mainSouthbound),
+            Leg(39, 10.0, 90.0), Leg(30, 0.0, 90.0), Leg(40, 10.0, 90.0),
+        )
+
+        assertTrue(events.isEmpty(), "$events")
+    }
+
+    @Test
+    fun `light without a direction is not recorded automatically`() {
+        val anyDirection = LightPosition(20, Geo.offset(start, 0.0, 400.0), approachBearing = null)
+
+        val events = route(start, listOf(anyDirection), Leg(60, 10.0, 0.0))
+
+        assertTrue(events.isEmpty(), "$events")
+    }
+
+    @Test
+    fun `turning into another road before the light drops it`() {
+        // Northbound on the main road, but turning east 100 m before the crossroads.
+        val events = route(
+            start, listOf(mainNorthbound, mainSouthbound),
+            Leg(30, 10.0, 0.0), Leg(40, 10.0, 90.0),
+        )
+
+        assertTrue(events.isEmpty(), "$events")
+    }
+
+    @Test
+    fun `turning right at the crossroads after the green still counts`() {
+        // Stop 12 m before the northbound light, move off past its stop line and turn east
+        // in the middle of the crossroads.
+        val events = route(
+            start, listOf(mainNorthbound, mainSouthbound),
+            Leg(38, 10.0, 0.0), Leg(30, 0.0, 0.0), Leg(3, 5.0, 0.0), Leg(20, 10.0, 90.0),
+        )
+
+        assertEquals(listOf(RED_SEEN, GREEN_START), events.map { it.kind })
+        assertTrue(events.all { it.lightId == mainNorthbound.id })
+    }
+
+    @Test
+    fun `GPS jumping back after the light does not record a second pass`() {
+        // Northbound at 10 m/s through the light at 400 m; right after crossing it, one fix
+        // lands 3 m before the light (GPS noise), then the car goes on.
+        val detector = PassDetector(listOf(northbound))
+        val distances = (1..40).map { it * 10.0 } + listOf(397.0) + (41..60).map { it * 10.0 }
+        val events = distances.mapIndexed { i, d ->
+            detector.onSample(DriveSample((i + 1) * 1000L, Geo.offset(start, 0.0, d), 10.0, 0.0))
+        }.flatten()
+
+        assertEquals(listOf(GREEN_SEEN), events.map { it.kind })
+    }
+
     @Test
     fun `offset point is at the given distance and bearing`() {
         val p = Geo.offset(start, 90.0, 250.0)
