@@ -69,6 +69,12 @@ class PassDetector(
         val minStopSeconds: Double = 3.0,
         /** A tracked light is dropped when the car gets this far from it (m). */
         val abandonDistance: Double = 250.0,
+        /**
+         * A light just passed is not tracked again until the car is this far from it (m):
+         * near the light GPS noise can put a fix behind the previous one, which would make
+         * the light look ahead again and record the same pass twice.
+         */
+        val rearmDistance: Double = 60.0,
     )
 
     private data class Stop(val startMillis: Long, val distance: Double, var restartMillis: Long? = null)
@@ -82,6 +88,7 @@ class PassDetector(
     private var lights: List<LightPosition> = lights
     private var approach: Approach? = null
     private var lastHeading: Double? = null
+    private val justPassed = mutableSetOf<Long>()
 
     /** Replaces the known lights (e.g. after the user adds one); the light being tracked is kept. */
     fun updateLights(lights: List<LightPosition>) {
@@ -90,6 +97,10 @@ class PassDetector(
 
     fun onSample(sample: DriveSample): List<DetectedObservation> {
         sample.heading?.let { lastHeading = it }
+        justPassed.removeAll { id ->
+            val light = lights.firstOrNull { it.id == id }
+            light == null || Geo.distance(sample.position, light.position) > config.rearmDistance
+        }
         val current = approach ?: findApproach(sample.position, lastHeading)?.also { approach = it } ?: return emptyList()
         val bearing = checkNotNull(current.light.approachBearing)
 
@@ -129,7 +140,7 @@ class PassDetector(
                 val along = alongTrack(me, light.position, heading)
                 val lateral = abs(crossTrack(me, light.position, heading))
                 // A light without a direction could be any of the lights at a crossroads: skip it.
-                light.approachBearing != null &&
+                light.approachBearing != null && light.id !in justPassed &&
                     distance <= config.approachDistance && along > 0.0 && lateral <= config.lateralTolerance &&
                     Geo.angleDifference(heading, light.approachBearing) <= config.maxAngle
             }
@@ -155,6 +166,7 @@ class PassDetector(
 
     private fun finish(current: Approach, crossingMillis: Long): List<DetectedObservation> {
         approach = null
+        justPassed += current.light.id
         val id = current.light.id
         val stops = current.stops.filter { it.restartMillis != null && it.distance <= config.stopZone }
         if (stops.isEmpty()) return listOf(DetectedObservation(id, crossingMillis, ObservationKind.GREEN_SEEN))

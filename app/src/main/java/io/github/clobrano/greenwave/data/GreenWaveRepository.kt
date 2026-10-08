@@ -64,7 +64,7 @@ class GreenWaveRepository(
     suspend fun addDetected(detected: DetectedObservation, gnssTime: Boolean): ObservationEntity? {
         val window = when (detected.kind) {
             ObservationKind.GREEN_START -> 15_000L
-            ObservationKind.RED_SEEN -> 30_000L
+            ObservationKind.RED_SEEN, ObservationKind.GREEN_SEEN -> 30_000L
             else -> 0L
         }
         if (window > 0 && db.observations().countNear(

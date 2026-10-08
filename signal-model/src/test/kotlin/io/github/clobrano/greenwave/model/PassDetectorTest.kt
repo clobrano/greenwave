@@ -164,6 +164,19 @@ class PassDetectorTest {
     }
 
     @Test
+    fun `GPS jumping back after the light does not record a second pass`() {
+        // Northbound at 10 m/s through the light at 400 m; right after crossing it, one fix
+        // lands 3 m before the light (GPS noise), then the car goes on.
+        val detector = PassDetector(listOf(northbound))
+        val distances = (1..40).map { it * 10.0 } + listOf(397.0) + (41..60).map { it * 10.0 }
+        val events = distances.mapIndexed { i, d ->
+            detector.onSample(DriveSample((i + 1) * 1000L, Geo.offset(start, 0.0, d), 10.0, 0.0))
+        }.flatten()
+
+        assertEquals(listOf(GREEN_SEEN), events.map { it.kind })
+    }
+
+    @Test
     fun `offset point is at the given distance and bearing`() {
         val p = Geo.offset(start, 90.0, 250.0)
         assertEquals(250.0, Geo.distance(start, p), 0.1)
