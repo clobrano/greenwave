@@ -34,6 +34,9 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/** The next light I am driving toward and how far it is (m). */
+data class UpcomingLight(val light: TrafficLightEntity, val distance: Double)
+
 /** Traffic light the next manual observation will be assigned to. */
 data class RecordTarget(val light: TrafficLightEntity, val automatic: Boolean)
 
@@ -72,6 +75,13 @@ class GreenWaveViewModel(application: Application) : AndroidViewModel(applicatio
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     private val manualTargetId = MutableStateFlow<Long?>(null)
+
+    val upcoming: StateFlow<UpcomingLight?> =
+        combine(lights, fix) { lights, f ->
+            f ?: return@combine null
+            matcher.nextAhead(lights.map { it.toLightPosition() }, f.position, f.heading)
+                ?.let { ahead -> UpcomingLight(lights.first { it.id == ahead.light.id }, ahead.distance) }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val recordTarget: StateFlow<RecordTarget?> =
         combine(lights, fix, manualTargetId) { lights, fix, manualId ->

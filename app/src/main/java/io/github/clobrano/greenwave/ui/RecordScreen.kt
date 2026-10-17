@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,11 +37,20 @@ import io.github.clobrano.greenwave.data.LightEstimate
 import io.github.clobrano.greenwave.data.ObservationEntity
 import io.github.clobrano.greenwave.data.TrafficLightEntity
 import io.github.clobrano.greenwave.location.Fix
+import io.github.clobrano.greenwave.model.Geo
 import io.github.clobrano.greenwave.model.ObservationKind
 import io.github.clobrano.greenwave.trip.TripState
 
 /** Above this speed (m/s) the buttons are disabled: record only while stopped. */
 private const val MAX_SPEED_FOR_BUTTONS = 5.0 / 3.6
+
+/**
+ * Driving mode (prediction on the whole screen, recording controls hidden) starts above
+ * the first speed and ends below the second (m/s): the gap keeps the layout from flipping
+ * back and forth in slow traffic.
+ */
+private const val DRIVING_FROM = 8.0 / 3.6
+private const val DRIVING_UNTIL = 3.0 / 3.6
 
 @Composable
 fun RecordScreen(
@@ -55,6 +65,8 @@ fun RecordScreen(
     onRecord: (ObservationKind) -> Unit,
     onUndo: () -> Unit,
     toSecondsOfDay: (Long) -> Double,
+    toEpochMillis: (Long, Double) -> Long,
+    upcoming: UpcomingLight?,
     trip: TripState,
     onStartTrip: () -> Unit,
     onStopTrip: () -> Unit,
@@ -68,55 +80,75 @@ fun RecordScreen(
 
     val moving = (fix?.speed ?: 0.0) > MAX_SPEED_FOR_BUTTONS
     val enabled = target != null && !moving
+    var driving by remember { mutableStateOf(false) }
+    LaunchedEffect(fix?.speed) {
+        val speed = fix?.speed ?: 0.0
+        driving = if (driving) speed > DRIVING_UNTIL else speed > DRIVING_FROM
+    }
 
     Column(
         Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         TripCard(trip, onStartTrip, onStopTrip)
-        TargetSelector(lights, target, onChooseTarget)
+        if (!driving) TargetSelector(lights, target, onChooseTarget)
 
-        val plan = target?.let { estimates[it.light.id]?.estimate?.plan }
-        if (plan != null) {
-            val t = toSecondsOfDay(now)
-            val green = plan.isGreen(t)
-            Text(
-                "Predicted: ${if (green) "GREEN" else "RED"}, changes in ${plan.secondsToChange(t).toInt()} s",
-                color = if (green) Palette.green else Palette.red,
-                style = MaterialTheme.typography.titleMedium,
+        // The light I am driving toward, or the one being recorded when none is ahead
+        // (e.g. stopped right at it).
+        val shown = upcoming ?: target?.let { t ->
+            UpcomingLight(t.light, fix?.let { Geo.distance(it.position, t.light.position) } ?: Double.NaN)
+        }
+        if (shown != null) {
+            PredictionCard(
+                light = shown.light,
+                distance = shown.distance.takeUnless { it.isNaN() },
+                estimate = estimates[shown.light.id],
+                now = now,
+                speed = fix?.speed,
+                toSecondsOfDay = toSecondsOfDay,
+                toEpochMillis = toEpochMillis,
+                driving = driving,
+                modifier = if (driving) Modifier.weight(1f) else Modifier,
             )
         }
 
-        Text(statusLine(fix, clockSynced), style = MaterialTheme.typography.bodySmall)
-        if (moving) {
-            Text("Moving: the buttons work only when stopped.", color = Palette.amber)
-        }
+        if (driving) {
+            // While driving only the prediction matters: the buttons only work when stopped.
+            if (shown == null) {
+                Text("No traffic light ahead", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            }
+        } else {
+            Text(statusLine(fix, clockSynced), style = MaterialTheme.typography.bodySmall)
+            if (moving) {
+                Text("Moving: the buttons work only when stopped.", color = Palette.amber)
+            }
 
-        Button(
-            onClick = { onRecord(ObservationKind.GREEN_START) },
-            enabled = enabled,
-            shape = RoundedCornerShape(24.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Palette.green, contentColor = Color.Black),
-            modifier = Modifier.fillMaxWidth().weight(2f),
-        ) { Text("GREEN NOW", fontSize = 48.sp, fontWeight = FontWeight.Black) }
+            Button(
+                onClick = { onRecord(ObservationKind.GREEN_START) },
+                enabled = enabled,
+                shape = RoundedCornerShape(24.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Palette.green, contentColor = Color.Black),
+                modifier = Modifier.fillMaxWidth().weight(2f),
+            ) { Text("GREEN NOW", fontSize = 48.sp, fontWeight = FontWeight.Black) }
 
-        Button(
-            onClick = { onRecord(ObservationKind.RED_START) },
-            enabled = enabled,
-            shape = RoundedCornerShape(24.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Palette.red, contentColor = Color.White),
-            modifier = Modifier.fillMaxWidth().weight(1f),
-        ) { Text("RED NOW", fontSize = 32.sp, fontWeight = FontWeight.Bold) }
+            Button(
+                onClick = { onRecord(ObservationKind.RED_START) },
+                enabled = enabled,
+                shape = RoundedCornerShape(24.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Palette.red, contentColor = Color.White),
+                modifier = Modifier.fillMaxWidth().weight(1f),
+            ) { Text("RED NOW", fontSize = 32.sp, fontWeight = FontWeight.Bold) }
 
-        Box(Modifier.fillMaxWidth().height(56.dp)) {
-            if (lastSaved != null) {
-                Row(Modifier.align(Alignment.CenterStart), verticalAlignment = Alignment.CenterVertically) {
-                    val name = lights.firstOrNull { it.id == lastSaved.lightId }?.name.orEmpty()
-                    Text(
-                        "Saved: ${lastSaved.kind.label} at ${formatTime(lastSaved.epochMillis)} – $name",
-                        Modifier.weight(1f),
-                    )
-                    TextButton(onClick = onUndo) { Text("Undo") }
+            Box(Modifier.fillMaxWidth().height(56.dp)) {
+                if (lastSaved != null) {
+                    Row(Modifier.align(Alignment.CenterStart), verticalAlignment = Alignment.CenterVertically) {
+                        val name = lights.firstOrNull { it.id == lastSaved.lightId }?.name.orEmpty()
+                        Text(
+                            "Saved: ${lastSaved.kind.label} at ${formatTime(lastSaved.epochMillis)} – $name",
+                            Modifier.weight(1f),
+                        )
+                        TextButton(onClick = onUndo) { Text("Undo") }
+                    }
                 }
             }
         }
