@@ -36,7 +36,9 @@ over the old one without losing data.
    Above the buttons, a card shows the next light ahead in your direction (up to 500 m).
    Once that light is predictable it shows its expected color with a countdown, and the
    speed to keep to arrive on green ("Keep 38 km/h", never above the light's speed limit),
-   or "Red on arrival: slow down" with the time of the next green.
+   or "SLOW DOWN" with the time of the next green. While driving (above about 8 km/h) the
+   recording controls are hidden and the prediction fills the screen with very large text,
+   to be read at a glance; they come back when you stop.
 3. **Auto-record trip** (top of the Record tab): press Start before leaving and drive as
    usual. The app follows the GPS, also with the screen off, and records by itself what
    happens at each of your lights. A notification shows the events detected so far and has
