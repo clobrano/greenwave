@@ -36,6 +36,7 @@ import io.github.clobrano.greenwave.data.LightEstimate
 import io.github.clobrano.greenwave.data.ObservationEntity
 import io.github.clobrano.greenwave.data.TrafficLightEntity
 import io.github.clobrano.greenwave.location.Fix
+import io.github.clobrano.greenwave.model.Geo
 import io.github.clobrano.greenwave.model.ObservationKind
 import io.github.clobrano.greenwave.trip.TripState
 
@@ -55,6 +56,8 @@ fun RecordScreen(
     onRecord: (ObservationKind) -> Unit,
     onUndo: () -> Unit,
     toSecondsOfDay: (Long) -> Double,
+    toEpochMillis: (Long, Double) -> Long,
+    upcoming: UpcomingLight?,
     trip: TripState,
     onStartTrip: () -> Unit,
     onStopTrip: () -> Unit,
@@ -76,14 +79,20 @@ fun RecordScreen(
         TripCard(trip, onStartTrip, onStopTrip)
         TargetSelector(lights, target, onChooseTarget)
 
-        val plan = target?.let { estimates[it.light.id]?.estimate?.plan }
-        if (plan != null) {
-            val t = toSecondsOfDay(now)
-            val green = plan.isGreen(t)
-            Text(
-                "Predicted: ${if (green) "GREEN" else "RED"}, changes in ${plan.secondsToChange(t).toInt()} s",
-                color = if (green) Palette.green else Palette.red,
-                style = MaterialTheme.typography.titleMedium,
+        // The light I am driving toward, or the one being recorded when none is ahead
+        // (e.g. stopped right at it).
+        val shown = upcoming ?: target?.let { t ->
+            UpcomingLight(t.light, fix?.let { Geo.distance(it.position, t.light.position) } ?: Double.NaN)
+        }
+        if (shown != null) {
+            PredictionCard(
+                light = shown.light,
+                distance = shown.distance.takeUnless { it.isNaN() },
+                estimate = estimates[shown.light.id],
+                now = now,
+                speed = fix?.speed,
+                toSecondsOfDay = toSecondsOfDay,
+                toEpochMillis = toEpochMillis,
             )
         }
 

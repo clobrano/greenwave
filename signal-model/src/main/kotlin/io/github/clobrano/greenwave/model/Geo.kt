@@ -67,4 +67,37 @@ class LightMatcher(
             }
             .minByOrNull { it.second }
             ?.first
+
+    /**
+     * The next light I am driving toward: ahead of me along [heading], close to my driving
+     * line, and (if it has one) with a driving direction matching mine. [LightAhead.distance]
+     * is measured along my heading, i.e. how far I still have to drive to reach it.
+     */
+    fun nextAhead(
+        lights: List<LightPosition>,
+        me: GeoPoint,
+        heading: Double?,
+        maxDistance: Double = 500.0,
+        lateralTolerance: Double = 40.0,
+    ): LightAhead? {
+        if (heading == null) return null
+        return lights
+            .mapNotNull { light ->
+                val distance = Geo.distance(me, light.position)
+                val angle = Math.toRadians(Geo.bearing(me, light.position) - heading)
+                val along = distance * cos(angle)
+                val lateral = abs(distance * sin(angle))
+                val sameDirection = light.approachBearing == null ||
+                    Geo.angleDifference(heading, light.approachBearing) <= maxAngle
+                if (distance <= maxDistance && along > 0.0 && lateral <= lateralTolerance && sameDirection) {
+                    LightAhead(light, along)
+                } else {
+                    null
+                }
+            }
+            .minByOrNull { it.distance }
+    }
 }
+
+/** A light ahead of me and how far I still have to drive to reach it (m). */
+data class LightAhead(val light: LightPosition, val distance: Double)

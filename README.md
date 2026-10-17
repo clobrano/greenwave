@@ -33,6 +33,10 @@ over the old one without losing data.
    green (and **RED NOW** when it turns amber, if you see it). The light is picked
    automatically (the nearest one in your direction) or by hand. The buttons are disabled
    above 5 km/h. "Undo" deletes the last recording.
+   Above the buttons, a card shows the next light ahead in your direction (up to 500 m).
+   Once that light is predictable it shows its expected color with a countdown, and the
+   speed to keep to arrive on green ("Keep 38 km/h", never above the light's speed limit),
+   or "Red on arrival: slow down" with the time of the next green.
 3. **Auto-record trip** (top of the Record tab): press Start before leaving and drive as
    usual. The app follows the GPS, also with the screen off, and records by itself what
    happens at each of your lights. A notification shows the events detected so far and has
@@ -96,4 +100,4 @@ Requirements: JDK 21 and the Android SDK with platform 37.
 - [x] Plan estimate and prediction in the light detail (ahead of M2)
 - [ ] M2 – Departure table for the route
 - [x] M3 – Automatic recording from GPS (stops and restarts)
-- [ ] M4 – Assisted driving with speed advice
+- [ ] M4 – Assisted driving with speed advice (first part: prediction and speed on the Record tab)

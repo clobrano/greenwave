@@ -74,6 +74,7 @@ private fun GreenWaveApp(viewModel: GreenWaveViewModel) {
     val target by viewModel.recordTarget.collectAsStateWithLifecycle()
     val lastSaved by viewModel.lastSaved.collectAsStateWithLifecycle()
     val trip by viewModel.tripState.collectAsStateWithLifecycle()
+    val upcoming by viewModel.upcoming.collectAsStateWithLifecycle()
 
     var tab by rememberSaveable { mutableStateOf(Tab.MAP) }
     var openLightId by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -149,6 +150,8 @@ private fun GreenWaveApp(viewModel: GreenWaveViewModel) {
                     onRecord = viewModel::record,
                     onUndo = viewModel::undoLast,
                     toSecondsOfDay = viewModel::secondsOfDay,
+                    toEpochMillis = viewModel::toEpochMillis,
+                    upcoming = upcoming,
                     trip = trip,
                     onStartTrip = {
                         if (fix == null || !viewModel.startTrip()) {

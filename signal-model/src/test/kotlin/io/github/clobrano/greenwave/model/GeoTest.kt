@@ -33,4 +33,23 @@ class GeoTest {
         assertEquals(southbound, matcher.match(listOf(northbound, southbound, far), here, heading = null))
         assertNull(matcher.match(listOf(far), here, heading = null))
     }
+
+    @Test
+    fun `next light ahead in my direction`() {
+        val here = GeoPoint(45.0, 9.0)
+        val near = LightPosition(1, Geo.offset(here, 0.0, 120.0), approachBearing = 0.0)
+        val far = LightPosition(2, Geo.offset(here, 0.0, 420.0), approachBearing = 0.0)
+        val behind = LightPosition(3, Geo.offset(here, 180.0, 50.0), approachBearing = 0.0)
+        val oppositeLane = LightPosition(4, Geo.offset(here, 0.0, 80.0), approachBearing = 180.0)
+        val sideStreet = LightPosition(5, Geo.offset(Geo.offset(here, 0.0, 60.0), 90.0, 100.0), approachBearing = null)
+        val lights = listOf(near, far, behind, oppositeLane, sideStreet)
+        val matcher = LightMatcher()
+
+        val ahead = matcher.nextAhead(lights, here, heading = 0.0)!!
+        assertEquals(near, ahead.light)
+        assertEquals(120.0, ahead.distance, 0.5)
+        assertEquals(far, matcher.nextAhead(listOf(far, behind), here, heading = 0.0)!!.light)
+        assertNull(matcher.nextAhead(lights, here, heading = null))
+        assertNull(matcher.nextAhead(listOf(far), here, heading = 0.0, maxDistance = 300.0))
+    }
 }
