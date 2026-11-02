@@ -29,6 +29,7 @@ import io.github.clobrano.greenwave.data.ObservationEntity
 import io.github.clobrano.greenwave.data.ObservationSource
 import io.github.clobrano.greenwave.data.TrafficLightEntity
 import io.github.clobrano.greenwave.model.SignalPlan
+import kotlin.math.roundToInt
 
 @Composable
 fun LightDetailScreen(
@@ -133,23 +134,18 @@ private fun EstimateCard(
             Text("Estimated plan", style = MaterialTheme.typography.titleMedium)
             estimate?.let { Text("Time band: ${it.slot.label}", style = MaterialTheme.typography.bodySmall) }
             Text(e?.status.label, color = e?.status.color)
+            noPredictionReason(estimate)?.let { Text(it, color = Palette.amber) }
             val plan = e?.plan
-            if (e == null || plan == null) {
-                Text("Needs at least 2 starts of green in this time band, in different cycles.")
-                return@Column
-            }
-            Text("Cycle: ${formatSeconds(plan.cycle)}")
-            Text("Green: ${formatSeconds(plan.green)}" + if (e.greenMeasured) "" else " (guess: record red too)")
-            Text("Mean error: ${formatSeconds(e.rmsError)} over ${e.greenStarts} starts of green")
-            if (e.contradictions > 0) Text("Contradicting observations: ${e.contradictions}", color = Palette.amber)
-            if (e.alternativeCycles.isNotEmpty()) {
+            if (e != null && plan != null) {
+                Text("Cycle: ${formatSeconds(plan.cycle)}")
+                Text("Green: ${formatSeconds(plan.green)}" + if (e.greenMeasured) "" else " (guess: record red too)")
                 Text(
-                    "Other possible cycles: " + e.alternativeCycles.joinToString { formatSeconds(it) } +
-                        ". Also record red lights and wait at red with GPS on to tell them apart.",
-                    color = Palette.amber,
+                    "Fits ${100 - (e.errorRate * 100).roundToInt()}% of the observations" +
+                        if (e.greenStarts > 0) " · starts of green ${formatSeconds(e.rmsError)} off on average" else "",
+                    style = MaterialTheme.typography.bodySmall,
                 )
+                LiveState(plan, now, toSecondsOfDay, toEpochMillis)
             }
-            LiveState(plan, now, toSecondsOfDay, toEpochMillis)
         }
     }
 }

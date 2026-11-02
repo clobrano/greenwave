@@ -66,8 +66,7 @@ fun PredictionCard(
             )
             if (plan == null) {
                 Text(
-                    "No prediction yet (${e?.status.label}): ${e?.greenStarts ?: 0} starts of green recorded " +
-                        "in this time band, at least 3 needed with a consistent cycle.",
+                    "No prediction yet. " + (noPredictionReason(estimate) ?: e?.status.label),
                     style = MaterialTheme.typography.bodyLarge,
                 )
             } else {

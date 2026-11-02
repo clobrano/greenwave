@@ -21,3 +21,6 @@ captures/
 # Shared debug key: every build (CI included) has the same signature,
 # so the APK updates without uninstalling and without losing data.
 !app/debug.keystore
+
+# Kotlin compiler daemon state
+.kotlin/

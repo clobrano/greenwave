@@ -1,6 +1,8 @@
 package io.github.clobrano.greenwave.ui
 
 import androidx.compose.ui.graphics.Color
+import io.github.clobrano.greenwave.data.LightEstimate
+import io.github.clobrano.greenwave.model.Blocker
 import io.github.clobrano.greenwave.model.Geo
 import io.github.clobrano.greenwave.model.ObservationKind
 import io.github.clobrano.greenwave.model.PlanStatus
@@ -8,6 +10,8 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.math.ceil
+import kotlin.math.roundToInt
 
 private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault())
 private val dateTimeFormatter = DateTimeFormatter.ofPattern("EEE d MMM HH:mm:ss", Locale.ENGLISH)
@@ -79,3 +83,37 @@ fun directionLabel(bearing: Double?): String =
         compassDirections.drop(1).minBy { (_, b) -> Geo.angleDifference(bearing, b!!) }.first +
             " (${bearing.toInt()}°)"
     }
+
+/** Why a light has no reliable prediction, in a sentence or two; null when it is predictable. */
+fun noPredictionReason(estimate: LightEstimate?): String? {
+    val e = estimate?.estimate ?: return "No observations for this light yet."
+    val elsewhere = estimate.otherBandObservations.takeIf { it > 0 }
+        ?.let { " $it more observations are from other time bands and are not used now." }
+        .orEmpty()
+    val percent = { rate: Double -> "${(rate * 100).roundToInt()}%" }
+    return when (e.blocker) {
+        null -> null
+        Blocker.NO_DATA -> "No observations in this time band (${estimate.slot.label}).$elsewhere"
+        Blocker.TOO_FEW -> if (e.evidence >= e.evidenceNeeded) {
+            // Enough observations, but all within one cycle: the cycle length cannot show yet.
+            "All observations in this time band are from the same moment: pass this light again " +
+                "on other trips.$elsewhere"
+        } else {
+            val missing = ceil(e.evidenceNeeded - e.evidence).toInt().coerceAtLeast(1)
+            "Not enough data yet in this time band: about $missing more pass${if (missing == 1) "" else "es"} " +
+                "needed (a stop at red or a GREEN NOW press counts about 4).$elsewhere"
+        }
+        Blocker.AMBIGUOUS ->
+            "The cycle could be ${formatSeconds(e.plan!!.cycle)} or " +
+                e.alternativeCycles.joinToString(" or ") { formatSeconds(it) } +
+                ": more passes, especially when the light is red, will tell them apart."
+        Blocker.INCONSISTENT ->
+            if (e.status == PlanStatus.UNPREDICTABLE) {
+                "The observations fit no fixed cycle (${percent(e.errorRate)} contradict the best one): " +
+                    "this light probably adapts to traffic."
+            } else {
+                "${percent(e.errorRate)} of the observations contradict the best cycle: keep recording, " +
+                    "or delete observations that look wrong."
+            }
+    }
+}

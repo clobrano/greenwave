@@ -13,8 +13,12 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-/** Plan estimate of a traffic light for the time band [slot]. */
-data class LightEstimate(val slot: ScheduleSlot, val estimate: PlanEstimate)
+/**
+ * Plan estimate of a traffic light for the time band [slot]. [otherBandObservations]
+ * counts the observations of the light recorded in other time bands, which this
+ * estimate does not use.
+ */
+data class LightEstimate(val slot: ScheduleSlot, val estimate: PlanEstimate, val otherBandObservations: Int)
 
 class GreenWaveRepository(
     private val db: AppDatabase,
@@ -23,6 +27,11 @@ class GreenWaveRepository(
 ) {
     val lights = db.trafficLights().observeAll()
     val observations = db.observations().observeAll()
+
+    /** Last estimate per light, reused while its observations in the band do not change. */
+    private val cache = HashMap<Long, Pair<EstimateKey, PlanEstimate>>()
+
+    private data class EstimateKey(val slot: ScheduleSlot, val observationIds: List<Long>)
 
     suspend fun addLight(name: String, position: GeoPoint, approachBearing: Double?, speedLimitKmh: Int): Long =
         db.trafficLights().insert(
@@ -88,13 +97,28 @@ class GreenWaveRepository(
     fun estimate(observations: List<ObservationEntity>, nowMillis: Long): Map<Long, LightEstimate> {
         val slot = timeBands.slotOf(nowMillis)
         return observations
-            .filter { timeBands.slotOf(it.epochMillis) == slot }
             .groupBy { it.lightId }
-            .mapValues { (_, list) ->
-                val modelObservations = list.map { Observation(timeBands.secondsOfDay(it.epochMillis), it.kind) }
-                LightEstimate(slot, estimator.estimate(modelObservations))
+            .mapValues { (lightId, all) ->
+                val inBand = all.filter { timeBands.slotOf(it.epochMillis) == slot }
+                LightEstimate(slot, estimateCached(lightId, slot, inBand), otherBandObservations = all.size - inBand.size)
             }
     }
+
+    private fun estimateCached(lightId: Long, slot: ScheduleSlot, observations: List<ObservationEntity>): PlanEstimate =
+        synchronized(cache) {
+            val key = EstimateKey(slot, observations.map { it.id }.sorted())
+            cache[lightId]?.takeIf { it.first == key }?.second
+                ?: estimator.estimate(
+                    observations.map {
+                        Observation(
+                            timeBands.secondsOfDay(it.epochMillis),
+                            it.kind,
+                            // Button presses are precise; events inferred from GPS are a few seconds off.
+                            precise = it.source == ObservationSource.MANUAL,
+                        )
+                    },
+                ).also { cache[lightId] = key to it }
+        }
 
     fun secondsOfDay(epochMillis: Long): Double = timeBands.secondsOfDay(epochMillis)
 
