@@ -15,5 +15,9 @@ enum class ObservationKind {
     RED_SEEN,
 }
 
-/** An observation; [time] is in seconds on the same scale as [SignalPlan]. */
-data class Observation(val time: Double, val kind: ObservationKind)
+/**
+ * An observation; [time] is in seconds on the same scale as [SignalPlan].
+ * [precise] is true for button presses (about 1 s off at most) and false for events
+ * inferred from GPS, whose timing can be a few seconds off.
+ */
+data class Observation(val time: Double, val kind: ObservationKind, val precise: Boolean = true)

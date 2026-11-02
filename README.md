@@ -60,12 +60,15 @@ Map colors: gray = no data, amber = learning, green = predictable, red = unpredi
 
 ### How much data is needed
 
-- At least 3 starts of green in the same time band (weekday 7:00–9:30, 9:30–17:00,
-  17:00–20:00, etc.), ideally on different days.
-- With starts of green alone the cycle stays ambiguous with its half (90 s and 45 s explain
-  the same data). To resolve it, now and then also record **RED NOW** (it measures the green
-  duration) and keep GPS on: when you press GREEN NOW after waiting, the app records by
-  itself that it was red from the moment you stopped.
+- Everything counts: passes on green, stops at red, GPS-detected restarts and button presses.
+  A pass weighs 1; a start of green (a GREEN NOW press, or a restart after a stop) weighs
+  about 4. About 12 is the minimum, spread over different cycles, in the same time band
+  (weekday 7:00–9:30, 9:30–17:00, 17:00–20:00, etc.). Passes alone are enough, though it
+  usually takes a few dozen of them for the cycle to stand out.
+- When there is no prediction, the Record card and the light's detail page say why: not
+  enough data (and how much is missing), several possible cycles (with their lengths), or
+  observations that fit no fixed cycle (probably a light that adapts to traffic). They also
+  say how many observations are in other time bands.
 - The time used is the GPS satellite time, not the phone clock, which can be off by a few
   seconds.
 
@@ -76,7 +79,7 @@ The logic lives in the `signal-model` module, plain Kotlin without Android, test
 | File | What it does |
 | --- | --- |
 | `SignalPlan.kt` | Fixed-time traffic light: cycle, green duration, phase; color at an instant and next greens |
-| `PlanEstimator.kt` | Estimates the plan from observations: searches for the cycle that aligns the starts of green, then the green duration from color observations |
+| `PlanEstimator.kt` | Estimates the plan by phase folding: for each candidate cycle, folds every observation (seen green/red, starts of green/red) onto the cycle and finds the arc of green that misplaces the fewest; the cycle with the fewest errors wins and the arc gives start and duration of green |
 | `SpeedAdvisor.kt` | Speed to reach the next light on green, never above the limit |
 | `TripSimulator.kt` | Simulates the trip to compare departure times |
 | `TimeBands.kt` | Time bands and day types |
