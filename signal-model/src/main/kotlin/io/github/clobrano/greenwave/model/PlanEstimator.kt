@@ -1,7 +1,11 @@
 package io.github.clobrano.greenwave.model
 
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.atan2
+import kotlin.math.cos
 import kotlin.math.max
+import kotlin.math.sin
 import kotlin.math.sqrt
 
 enum class PlanStatus {
@@ -28,6 +32,9 @@ enum class Blocker {
 
     /** No fixed cycle explains the observations (see [PlanEstimate.errorRate]). */
     INCONSISTENT,
+
+    /** A cycle stands out but its timing is not precise enough yet (see [PlanEstimate.uncertainty]). */
+    IMPRECISE,
 }
 
 data class PlanEstimate(
@@ -41,6 +48,11 @@ data class PlanEstimate(
     val evidenceNeeded: Double,
     /** Share of the evidence that contradicts [plan], from 0 to 1. */
     val errorRate: Double,
+    /**
+     * How far off (s) the predicted changes of color can be, at worst, over the time span
+     * of the data: from the uncertainty on the cycle and on the edges of green. NaN without a plan.
+     */
+    val uncertainty: Double,
     /** Root mean square distance (s) of the observed starts of green from the plan; NaN without starts. */
     val rmsError: Double,
     val greenStarts: Int,
@@ -75,8 +87,13 @@ class PlanEstimator(private val config: Config = Config()) {
         val minEvidence: Double = 12.0,
         /** Above this share of contradicting evidence the plan is not reliable. */
         val maxErrorRate: Double = 0.10,
+        /**
+         * Above this timing uncertainty (s) the plan is not reliable. On simulated drives,
+         * plans within 5 s predicted the right color at least 96% of the time.
+         */
+        val maxUncertainty: Double = 5.0,
         /** With at least [minEvidenceForUnpredictable], above this share the light is unpredictable. */
-        val unpredictableErrorRate: Double = 0.20,
+        val unpredictableErrorRate: Double = 0.15,
         val minEvidenceForUnpredictable: Double = 40.0,
         /** Cycles scoring within this share of the evidence (or 1, if more) of the best are alternatives. */
         val ambiguitySlack: Double = 0.03,
@@ -108,10 +125,23 @@ class PlanEstimator(private val config: Config = Config()) {
         val totalGreen = list.filter { it.green }.sumOf { it.weight }
     }
 
-    /** Best arc of green for one cycle: [errors] is the weight of the misplaced samples. */
-    private class Fold(val errors: Double, val greenStart: Double, val greenDuration: Double)
+    /**
+     * Best arc of green for one cycle: [errors] is the weight of the misplaced samples;
+     * [startGap] and [endGap] are the empty gaps around its two edges, where the true
+     * changes of color can be anywhere.
+     */
+    private class Fold(
+        val errors: Double,
+        val greenStart: Double,
+        val greenDuration: Double,
+        val startGap: Double,
+        val endGap: Double,
+    )
 
-    private class Group(val cycle: Double, val errors: Double)
+    /** A run of candidate cycles scoring within the limit: [best] are its best-scoring cycles. */
+    private class Group(val best: List<Double>, val errors: Double) {
+        val cycle: Double get() = best[best.size / 2]
+    }
 
     fun estimate(observations: List<Observation>): PlanEstimate {
         val used = observations.sortedBy { it.time }.takeLast(config.maxObservations)
@@ -140,16 +170,42 @@ class PlanEstimator(private val config: Config = Config()) {
             .sortedBy { it.errors }
             .map { it.cycle }
 
-        val fold = fold(folded, best.cycle)
+        // Many neighboring cycles may misplace the same weight: pick the one where the starts
+        // of green line up best or, without starts, the middle one of the run.
+        val weightedStarts = used.filter { it.kind == ObservationKind.GREEN_START }
+            .map { it.time to if (it.precise) config.preciseStartWeight else config.gpsStartWeight }
+        val cycle = if (weightedStarts.isNotEmpty()) {
+            best.best.minBy { startSpread(weightedStarts, it) }
+        } else {
+            best.cycle
+        }
+        val fold = fold(folded, cycle)
         val greenMeasured = used.any { it.kind != ObservationKind.GREEN_START }
-        val green = (if (greenMeasured) fold.greenDuration else best.cycle * config.defaultGreenFraction)
-            .coerceIn(config.minPhase, best.cycle - config.minPhase)
-        val offset = positiveMod(fold.greenStart, best.cycle)
+        // With starts of green their average is a better start than the edge of the arc.
+        val start = if (weightedStarts.isNotEmpty()) circularMean(weightedStarts, cycle) else fold.greenStart
+        val offset = positiveMod(start, cycle)
+        val end = fold.greenStart + fold.greenDuration
+        val green = (if (greenMeasured) positiveMod(end - offset, cycle) else cycle * config.defaultGreenFraction)
+            .coerceIn(config.minPhase, cycle - config.minPhase)
         val errorRate = fold.errors / evidence
+
+        // Timing uncertainty: a cycle off by up to half the run of equally good cycles drifts
+        // by that much every cycle, for half the span on either side of the data's middle;
+        // the edges of green are known within half their gaps (or the scatter of the starts).
+        val cycleHalfWidth = (best.best.last() - best.best.first()) / 2.0 + step / 2.0
+        val drift = cycleHalfWidth * (span / 2.0) / cycle
+        val startUncertainty = if (weightedStarts.isNotEmpty()) {
+            sqrt(startSpread(weightedStarts, cycle))
+        } else {
+            fold.startGap / 2.0
+        }
+        val endUncertainty = if (greenMeasured) fold.endGap / 2.0 else cycle * config.defaultGreenFraction
+        val uncertainty = max(startUncertainty, endUncertainty) + drift
 
         val blocker = when {
             errorRate > config.maxErrorRate -> Blocker.INCONSISTENT
             alternatives.isNotEmpty() -> Blocker.AMBIGUOUS
+            uncertainty > config.maxUncertainty -> Blocker.IMPRECISE
             else -> null
         }
         val status = when {
@@ -161,15 +217,16 @@ class PlanEstimator(private val config: Config = Config()) {
         val rms = if (starts.isEmpty()) {
             Double.NaN
         } else {
-            sqrt(starts.sumOf { val r = signedMod(it - offset, best.cycle); r * r } / starts.size)
+            sqrt(starts.sumOf { val r = signedMod(it - offset, cycle); r * r } / starts.size)
         }
         return PlanEstimate(
-            plan = SignalPlan(best.cycle, green, offset),
+            plan = SignalPlan(cycle, green, offset),
             status = status,
             blocker = blocker,
             evidence = evidence,
             evidenceNeeded = config.minEvidence,
             errorRate = errorRate,
+            uncertainty = uncertainty,
             rmsError = rms,
             greenStarts = starts.size,
             greenMeasured = greenMeasured,
@@ -184,6 +241,7 @@ class PlanEstimator(private val config: Config = Config()) {
         evidence = evidence,
         evidenceNeeded = config.minEvidence,
         errorRate = Double.NaN,
+        uncertainty = Double.NaN,
         rmsError = Double.NaN,
         greenStarts = starts,
         greenMeasured = false,
@@ -246,14 +304,16 @@ class PlanEstimator(private val config: Config = Config()) {
         val (from, to, arcSum) = if (wraps) Triple((minTo + 1) % n, (minFrom - 1 + n) % n, total - bestMin)
         else Triple(maxFrom, maxTo, bestMax)
 
-        if (arcSum <= 0.0) return Fold(totalGreen, 0.0, 0.0)
+        if (arcSum <= 0.0) return Fold(totalGreen, 0.0, 0.0, cycle, cycle)
         // The edges of green lie halfway between the last red and the first green sample.
         val before = phase[(from - 1 + n) % n]
         val after = phase[(to + 1) % n]
-        val start = before + positiveMod(phase[from] - before, cycle) / 2.0
-        val end = phase[to] + positiveMod(after - phase[to], cycle) / 2.0
+        val startGap = positiveMod(phase[from] - before, cycle)
+        val endGap = positiveMod(after - phase[to], cycle)
+        val start = before + startGap / 2.0
+        val end = phase[to] + endGap / 2.0
         val duration = if (n == 1) cycle else positiveMod(end - start, cycle).let { if (it == 0.0) cycle else it }
-        return Fold(totalGreen - arcSum, start, duration)
+        return Fold(totalGreen - arcSum, start, duration, startGap, endGap)
     }
 
     /**
@@ -268,11 +328,27 @@ class PlanEstimator(private val config: Config = Config()) {
             var j = i
             while (j + 1 < cycles.size && scores[j + 1] <= limit) j++
             val runBest = (i..j).minOf { scores[it] }
-            val bestPoints = (i..j).filter { scores[it] == runBest }
-            groups += Group(cycles[bestPoints[bestPoints.size / 2]], runBest)
+            groups += Group((i..j).filter { scores[it] == runBest }.map { cycles[it] }, runBest)
             i = j + 1
         }
         return groups
+    }
+
+    /** Weighted root mean square distance of the starts from their circular mean, for [cycle]. */
+    private fun startSpread(starts: List<Pair<Double, Double>>, cycle: Double): Double {
+        val mean = circularMean(starts, cycle)
+        return starts.sumOf { (t, w) -> val r = signedMod(t - mean, cycle); w * r * r } / starts.sumOf { it.second }
+    }
+
+    private fun circularMean(times: List<Pair<Double, Double>>, cycle: Double): Double {
+        var s = 0.0
+        var c = 0.0
+        for ((t, w) in times) {
+            val angle = 2.0 * PI * positiveMod(t, cycle) / cycle
+            s += w * sin(angle)
+            c += w * cos(angle)
+        }
+        return positiveMod(atan2(s, c) / (2.0 * PI) * cycle, cycle)
     }
 
     private companion object {

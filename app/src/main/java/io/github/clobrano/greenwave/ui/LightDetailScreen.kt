@@ -140,7 +140,8 @@ private fun EstimateCard(
                 Text("Cycle: ${formatSeconds(plan.cycle)}")
                 Text("Green: ${formatSeconds(plan.green)}" + if (e.greenMeasured) "" else " (guess: record red too)")
                 Text(
-                    "Fits ${100 - (e.errorRate * 100).roundToInt()}% of the observations" +
+                    "Fits ${100 - (e.errorRate * 100).roundToInt()}% of the observations · " +
+                        "timing within ±${e.uncertainty.roundToInt()} s" +
                         if (e.greenStarts > 0) " · starts of green ${formatSeconds(e.rmsError)} off on average" else "",
                     style = MaterialTheme.typography.bodySmall,
                 )

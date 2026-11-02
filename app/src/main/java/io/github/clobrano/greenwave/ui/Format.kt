@@ -107,6 +107,9 @@ fun noPredictionReason(estimate: LightEstimate?): String? {
             "The cycle could be ${formatSeconds(e.plan!!.cycle)} or " +
                 e.alternativeCycles.joinToString(" or ") { formatSeconds(it) } +
                 ": more passes, especially when the light is red, will tell them apart."
+        Blocker.IMPRECISE ->
+            "A cycle of ${formatSeconds(e.plan!!.cycle)} stands out, but its timing is only known within " +
+                "±${e.uncertainty.roundToInt()} s: a few more passes will sharpen it."
         Blocker.INCONSISTENT ->
             if (e.status == PlanStatus.UNPREDICTABLE) {
                 "The observations fit no fixed cycle (${percent(e.errorRate)} contradict the best one): " +

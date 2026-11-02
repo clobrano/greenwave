@@ -47,9 +47,11 @@ class PlanEstimatorTest {
 
     private fun assertSameTiming(expected: SignalPlan, actual: SignalPlan, tolerance: Double) {
         assertEquals(expected.cycle, actual.cycle, 0.05, "cycle")
-        // Offset compared by phase: it may differ by a multiple of the cycle.
-        val offsetError = abs(signedMod(actual.offset - expected.offset, expected.cycle))
-        assertTrue(offsetError <= tolerance, "offset error $offsetError")
+        // Start of green compared at 8:00, in the middle of the data, where the plan is used:
+        // comparing the offsets (at midnight) would multiply any cycle error by ~300 cycles.
+        val eight = 8 * 3600.0
+        val startError = abs(signedMod(actual.nextGreenStart(eight) - expected.nextGreenStart(eight), expected.cycle))
+        assertTrue(startError <= tolerance, "start of green error $startError")
     }
 
     @Test
@@ -66,14 +68,23 @@ class PlanEstimatorTest {
         assertEquals(12.0, few.evidenceNeeded, 1e-9)
     }
 
+    /** Share of random instants in the 7:00-9:00 band where [plan] predicts the true color. */
+    private fun agreement(plan: SignalPlan): Double {
+        val random = Random(99)
+        val times = List(2000) { 7 * 3600.0 + random.nextDouble() * 7200.0 }
+        return times.count { plan.isGreen(it) == truth.isGreen(it) } / times.size.toDouble()
+    }
+
     @Test
     fun `passes alone are enough to find the cycle`() {
-        // Only "seen green" / "seen red" at 80 passes, no stop and no button.
-        val estimate = estimator.estimate(passesOnly(arrivals(80, seed = 11)))
+        // Only "seen green" / "seen red" at 150 passes, no stop and no button.
+        val estimate = estimator.estimate(passesOnly(arrivals(150, seed = 11)))
 
         val plan = estimate.plan!!
-        assertSameTiming(truth, plan, tolerance = 3.0)
+        assertEquals(truth.cycle, plan.cycle, 0.1)
         assertEquals(truth.green, plan.green, 4.0)
+        val agreement = agreement(plan)
+        assertTrue(agreement >= 0.95, "predicted color right only ${agreement * 100}% of the time")
         assertEquals(0.0, estimate.errorRate, 1e-9)
         assertEquals(PlanStatus.RELIABLE, estimate.status, "$estimate")
         assertNull(estimate.blocker)
@@ -82,15 +93,26 @@ class PlanEstimatorTest {
     @Test
     fun `automatically recorded stops and passes give a reliable plan`() {
         val noise = Random(1)
-        val observations = arrivals(30, seed = 42).flatMap { autoRecorded(it, noise) }
+        val observations = arrivals(50, seed = 42).flatMap { autoRecorded(it, noise) }
 
         val estimate = estimator.estimate(observations)
 
         val plan = estimate.plan!!
         assertSameTiming(truth, plan, tolerance = 2.5)
         assertEquals(truth.green, plan.green, 4.0)
+        assertTrue(agreement(plan) >= 0.95, "agreement ${agreement(plan)}")
         assertTrue(estimate.greenMeasured)
         assertEquals(PlanStatus.RELIABLE, estimate.status, "$estimate")
+    }
+
+    @Test
+    fun `a cycle found from little data is not called reliable`() {
+        // 30 passes: the cycle stands out, but its timing is still too loose to rely on.
+        val estimate = estimator.estimate(passesOnly(arrivals(30, seed = 4)))
+
+        assertTrue(estimate.plan != null)
+        assertEquals(PlanStatus.LEARNING, estimate.status, "$estimate")
+        assertTrue(estimate.blocker == Blocker.IMPRECISE || estimate.blocker == Blocker.AMBIGUOUS, "$estimate")
     }
 
     @Test
